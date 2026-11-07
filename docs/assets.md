@@ -21,6 +21,10 @@ All fields use the centred 1920 x 1080 crop. The small panel backdrop comes from
 
 `app/assets/wallpapers/catalog.js` stores names and surface parameters; `app/assets/adaptive-ink.js` stores offline colour choices. New photographs need a rendered review of their List, Dock, clock, controls and all three materials before their metadata is accepted. An average image colour alone does not establish readable text.
 
+## Launcher icon
+
+`app/icon.png` is the 512×512 widget icon selected for this installation. `app/icon.svg` is its editable source: navy `#14213D`, light tiles `#E8EEF5`, slate `#5B6B82` in the bottom-right tile, and the orange `#FF6600` WC paths in the top-left tile. The widget manifest points at the PNG. Other letter placements are not part of this package.
+
 ## Icon metrics
 
 `node scripts/build-icon-metrics.mjs` measures the SVGs in an aspect-preserved 240px viewport, matching the CSS mask renderer. Output is ignored `.local/materials/metrics.js`; review before copying it into `app/assets/icons/metrics.js`. The TV reads these bounds and does not scan icon pixels.

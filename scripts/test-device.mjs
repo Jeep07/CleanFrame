@@ -7,14 +7,15 @@ import test from 'node:test';
 const source = readFileSync(new URL('../app/device.js', import.meta.url), 'utf8');
 function harness({ supported = true, throwSource = false } = {}) {
   let now = 0, next = 0;
-  const timers = new Map(), requests = [], launches = [], sourceRequests = [], changes = [];
+  const timers = new Map(), requests = [], launches = [], controls = [], sourceRequests = [], changes = [];
   let current = { type: 'HDMI', number: 2 };
   const application = {
     getCurrentApplication: () => ({ appInfo: { id: 'Owner12345.Home' } }),
     getAppsInfo: (ok, fail) => requests.push({ ok, fail }),
-    launch: (id, ok, fail) => launches.push({ id, ok, fail })
+    launch: (id, ok, fail) => launches.push({ id, ok, fail }),
+    launchAppControl: (control, id, ok, fail) => controls.push({ control, id, ok, fail })
   };
-  const window = { tizen: { application } };
+  const window = { tizen: { application, ApplicationControl: function (operation, uri, mime, category, data) { this.operation = operation; this.uri = uri; this.mime = mime; this.category = category; this.data = data; } } };
   if (supported) {
     window.tizen.systeminfo = { getPropertyValue: (name, ok, fail) => { assert.equal(name, 'VIDEOSOURCE'); sourceRequests.push({ ok, fail }); } };
     window.tizen.tvwindow = { getSource: (...args) => { assert.equal(args.length, 0); return current; },
@@ -29,7 +30,7 @@ function harness({ supported = true, throwSource = false } = {}) {
     now += ms;
     for (const [id, timer] of timers) if (timer.at <= now) { timers.delete(id); timer.callback(); }
   }
-  return { device: window.FrameDevice, requests, launches, sourceRequests, changes, advance, setCurrent: value => { current = value; } };
+  return { device: window.FrameDevice, requests, launches, controls, sourceRequests, changes, advance, setCurrent: value => { current = value; } };
 }
 
 test('a 500-app catalogue can arrive after the old eight-second deadline', () => {
@@ -74,6 +75,38 @@ test('regional streaming apps stay distinct and system helpers stay hidden', () 
   assert.equal(apps.find(a => a.name === 'YouTube').brand, 'youtube');
   assert.equal(apps.find(a => a.name === 'YouTube TV').brand, '');
   assert.equal(apps.find(a => a.name === 'HBO Max').brand, 'hbomax');
+});
+
+test('seven-streaming candidates use application IDs and reject dummy or numeric service IDs', () => {
+  const h = harness();
+  for (const brand of ['appletv', 'hulu', 'netflix', 'primevideo', 'paramountplus', 'youtube', 'disneyplus']) h.device.launch(brand, () => {});
+  assert.deepEqual(h.launches.map(call => call.id), [
+    'com.samsung.tv.aria-video', 'LBUAQX1exg.Hulu', 'org.tizen.netflix-app', 'org.tizen.primevideo',
+    'rJyOSqC6Up.CBSAllAccess', '9Ur5IzDKqV.TizenYouTube', 'MCmYXNxgcu.DisneyPlus'
+  ]);
+  for (const id of ['org.tizen.primevideo-dummy', 'com.samsung.tv.aria-dummy', '3201710014981', '3201601007625', '']) {
+    let error;
+    const before = h.launches.length;
+    h.device.launchApp(id, value => { error = value; });
+    assert.equal(h.launches.length, before);
+    assert.match(error.message, /no verified launch target/);
+  }
+});
+
+test('Hulu and Paramount+ stay visible while dummy, service and numeric records stay hidden', () => {
+  const h = harness();
+  let apps;
+  h.device.apps((error, value) => { assert.equal(error, null); apps = value; });
+  h.requests[0].ok([
+    { id: 'LBUAQX1exg.Hulu', name: 'Hulu', show: false },
+    { id: 'rJyOSqC6Up.CBSAllAccess', name: 'Paramount+', show: false },
+    { id: 'org.tizen.primevideo-dummy', name: 'Prime Video', show: true },
+    { id: 'com.samsung.tv.aria-dummy', name: 'Apple TV', show: true },
+    { id: 'MCmYXNxgcu.DisneyPlusService', name: 'DisneyPlusPreviewService', show: true },
+    { id: '3201710014981', name: 'Paramount+', show: true }
+  ]);
+  assert.deepEqual(Array.from(apps, app => app.brand), ['hulu', 'paramountplus']);
+  assert.deepEqual(Array.from(apps, app => app.appId), ['LBUAQX1exg.Hulu', 'rJyOSqC6Up.CBSAllAccess']);
 });
 
 test('launch keeps its eight-second deadline independently of discovery', () => {
@@ -160,4 +193,59 @@ test('unknown and invalid ports cannot be substituted and a newer request cancel
   assert.equal(results[0].cancelled, true);
   h.sourceRequests[0].ok(video); assert.equal(h.changes.length, 0);
   h.sourceRequests[1].ok(video); assert.equal(h.changes[0].source.number, 2);
+});
+test('TV settings requests the listed menu application and does not launch the headless settings id', () => {
+  const h = harness(), results = [];
+  h.device.settings((error, value) => results.push({ error, value }));
+  assert.equal(h.requests.length, 1);
+  h.requests[0].ok([{ id: 'com.samsung.tv.coba.setting', name: 'Setting', show: false }, { id: 'org.tizen.menu', name: 'Menu', show: false }]);
+  assert.equal(h.launches.length, 0);
+  assert.equal(h.controls.length, 1);
+  assert.equal(h.controls[0].id, 'org.tizen.menu');
+  assert.equal(h.controls[0].control.operation, 'http://tizen.org/appcontrol/operation/default');
+  assert.equal(h.controls[0].control.uri, null);
+  assert.equal(h.controls[0].control.data, null);
+  h.controls[0].ok();
+  assert.equal(results[0].error, null);
+  assert.equal(results[0].value.shown, false);
+  assert.equal(results[0].value.accepted, true);
+  assert.equal(results[0].value.id, 'org.tizen.menu');
+});
+test('TV settings stays an error when the menu application is absent or refused', () => {
+  const missing = harness(), missingResults = [];
+  missing.device.settings(error => missingResults.push(error));
+  missing.requests[0].ok([{ id: 'com.samsung.tv.coba.setting', name: 'Setting' }, { id: 'org.tizen.tv-viewer', name: 'TV viewer' }]);
+  assert.equal(missing.launches.length, 0);
+  assert.equal(missing.controls.length, 0);
+  assert.match(missingResults[0].message, /org\.tizen\.menu/);
+  assert.match(missingResults[0].detail, /coba\.setting/);
+  const refused = harness(), refusedResults = [];
+  refused.device.settings(error => refusedResults.push(error));
+  refused.requests[0].ok([{ id: 'org.tizen.menu', name: 'Menu' }]);
+  refused.controls[0].fail({ name: 'NotFoundError', message: 'No such app' });
+  assert.equal(refused.launches.length, 0);
+  assert.equal(refused.controls.length, 1);
+  assert.match(refusedResults[0].message, /could not open/);
+  const denied = harness(), deniedResults = [];
+  denied.device.settings(error => deniedResults.push(error));
+  denied.requests[0].fail({ message: 'Denied' });
+  assert.equal(denied.launches.length, 0);
+  assert.equal(denied.controls.length, 0);
+  assert.ok(deniedResults[0]);
+});
+test('inputs and TV settings stay on different adapters', () => {
+  const h = harness(), inputResults = [];
+  h.device.setSource(1, error => inputResults.push(error));
+  h.sourceRequests[0].ok({ connected: [], disconnected: [{ type: 'HDMI', number: 1 }] });
+  h.changes[0].ok({ type: 'HDMI', number: 1 });
+  h.launches[0].ok();
+  assert.equal(inputResults[0], null);
+  assert.equal(h.launches[0].id, 'org.tizen.tv-viewer');
+  assert.equal(h.controls.length, 0);
+  h.device.settings(() => {});
+  h.requests[0].ok([{ id: 'org.tizen.menu', name: 'Menu' }]);
+  assert.equal(h.launches.length, 1);
+  assert.equal(h.changes.length, 1);
+  assert.equal(h.controls.length, 1);
+  assert.equal(h.controls[0].id, 'org.tizen.menu');
 });

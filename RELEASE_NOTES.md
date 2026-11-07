@@ -1,3 +1,19 @@
+# CleanFrame 0.7.4
+
+Home, beside Settings and Samsung Home, returns to CleanFrame’s own launcher from the Dock, List, All apps, the editor, Settings and an appearance group. It does not launch Samsung Home and it does not rewrite the saved app order. Samsung Home stays the separate `com.samsung.tv.csfs` escape. TV settings no longer plain-launches `com.samsung.tv.coba.setting`. It requests `org.tizen.menu` only when that id is installed, without a regional menu file, and an accept callback is not reported as Settings on screen. Inputs stay on the source API and `org.tizen.tv-viewer`. Boot autostart is not enabled. The launcher icon is the selected WC mark: navy `#14213D`, orange `#FF6600` in the top-left tile, light tiles `#E8EEF5`, and slate `#5B6B82` at the bottom right. `app/icon.svg` is that editable source and `app/icon.png` is the 512×512 widget icon. The package identity and `required_version` 5.0 are unchanged.
+
+# CleanFrame 0.7.3
+
+The Home controls add Samsung Home beside Art Mode, All apps and Settings. OK uses the existing `tizen.application.launch` of `com.samsung.tv.csfs` and does not hide or exit CleanFrame first. A refused launch stays on the error message. The remote’s physical Home button, startup and Art Mode are unchanged. Return inside YouTube remains that app’s and the television’s behaviour. The launcher icon is a four-tile mark, and the package identity stays `NZsRORBcn0` / `NZsRORBcn0.WesleyCleanFrame` with `required_version` 5.0.
+
+# CleanFrame 0.7.2
+
+This fork's manifest and runtime self-filter use package `NZsRORBcn0` and application `NZsRORBcn0.WesleyCleanFrame`. The Tizen installation floor stays `required_version` 5.0. `npm run export:owner` writes an unsigned public-font widget and a web payload for `tizen package -t wgt -s WesleyFrame` on the owner's Mac. No certificate, device address or television is used. Home, startup and Art Mode behaviour are unchanged.
+
+# CleanFrame 0.7.1
+
+Fresh Home on this checkout uses a seven-streaming preset: Apple TV, Hulu, Netflix, Prime Video, Paramount+, YouTube and Disney+. Saved orders are kept. Launch targets are candidate Tizen application IDs and are untested on a 2022 LS03B. Numeric service IDs and `-dummy` packages are not launched. The browser preview states that app launching and Art Mode need a television, and that the photograph is launcher wallpaper. Home, startup and Art Mode routing are unchanged. The manual-install notes are in [docs/ls03b-manual-install.md](docs/ls03b-manual-install.md). No television was connected for this change.
+
 # CleanFrame 0.7.0
 
 CleanFrame remains a starting point to fork and adapt for your own Samsung TV.

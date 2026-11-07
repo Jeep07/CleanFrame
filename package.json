@@ -1,6 +1,6 @@
 {
   "name": "cleanframe",
-  "version": "0.7.0",
+  "version": "0.7.4",
   "private": true,
   "description": "A personal, uncluttered home interface for Samsung The Frame.",
   "scripts": {
@@ -13,6 +13,7 @@
     "check:browser": "node scripts/check-browser.mjs",
     "dev:public": "python3 scripts/preview.py --public-fonts",
     "export:public": "python3 scripts/export-public.py",
+    "export:owner": "python3 scripts/export-owner-payload.py",
     "check:public": "python3 scripts/check-public.py",
     "check:tools": "python3 -B scripts/test-tools.py",
     "lint": "eslint app",

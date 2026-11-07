@@ -1,10 +1,13 @@
 /* Public Tizen application APIs. No Mac server, network address or credentials. */
 (function () {
   'use strict';
+  /* Candidate application IDs for tizen.application.launch. Numeric Samsung
+     content IDs and *-dummy packages are not launch targets. LS03B is untested. */
   var IDS = {
-    stremio: 'IkWsFHtOY9.Stremio', netflix: 'org.tizen.netflix-app',
-    disneyplus: 'MCmYXNxgcu.DisneyPlus', youtube: '9Ur5IzDKqV.TizenYouTube',
-    appletv: 'com.samsung.tv.aria-video', primevideo: 'org.tizen.primevideo',
+    appletv: 'com.samsung.tv.aria-video', hulu: 'LBUAQX1exg.Hulu',
+    netflix: 'org.tizen.netflix-app', primevideo: 'org.tizen.primevideo',
+    paramountplus: 'rJyOSqC6Up.CBSAllAccess', youtube: '9Ur5IzDKqV.TizenYouTube',
+    disneyplus: 'MCmYXNxgcu.DisneyPlus', stremio: 'IkWsFHtOY9.Stremio',
     abciview: 'mWK87Xghap.ABCiview', sbs: 'OyE7OuxlUi.SBSOnDemand',
     applemusic: 'org.tizen.apple.apple-music'
   };
@@ -20,7 +23,7 @@
   var INTERNAL = ['adplatform.ADPlayer', 'WykOS4t4F0.cmsWebApp', '25emanual3.emanual',
     'd0m1lV1nt2.emanual', '2022ePop01.SmartTV',
     'ZODRT12q2l.WebAccountExtension', 'ByJlgt0XeD.CastSettingsApp', 'tv6pbVMQFF.PrivacyChoices'];
-  var SELF = 'nClrkHome1.FrameHome';
+  var SELF = 'NZsRORBcn0.WesleyCleanFrame';
   function api() { return window.tizen && window.tizen.application; }
   function selfId() {
     try { return api().getCurrentApplication().appInfo.id || SELF; }
@@ -96,7 +99,16 @@
       } catch (error) { finish(failure(error)); }
     });
   }
+  function launchTarget(id) {
+    return typeof id === 'string' && id && !/-dummy$/.test(id) && !/^[0-9]+$/.test(id);
+  }
   function launchApp(id, done) {
+    // Launch in place. Do not hide or exit first: a refused launch must leave this app visible.
+    // Return inside the other app is delivered only to that app. This call does not create a caller return.
+    if (!launchTarget(id)) {
+      done({ message: 'This app has no verified launch target.', detail: 'Dummy packages and numeric service IDs are not used. On the TV, read the application ID from getAppsInfo.' });
+      return;
+    }
     if (!api()) { unavailable(done); return; }
     var finish = bounded(done);
     try { api().launch(id, function () { finish(null); }, function (err) { finish(failure(err)); }); }
@@ -116,7 +128,33 @@
     } catch (err) { finish(failure(err)); }
   }
   function home(done) { launchApp('com.samsung.tv.csfs', done); }
-  function settings(done) { launchApp('com.samsung.tv.coba.setting', done); }
+  function settings(done) {
+    // Plain launch of com.samsung.tv.coba.setting can be accepted with no Settings screen on Tizen 6.5.
+    // Inputs uses VIDEOSOURCE, tvwindow.setSource and org.tizen.tv-viewer. That path does not identify Settings.
+    // org.tizen.menu is requested only when this TV lists it. No regional menu-file path is attached.
+    var appApi = api();
+    if (!appApi || typeof appApi.getAppsInfo !== 'function' || typeof appApi.launchAppControl !== 'function') { unavailable(done); return; }
+    var finish = bounded(done, 20000);
+    try {
+      appApi.getAppsInfo(function (list) {
+        var present = false, i;
+        for (i = 0; list && i < list.length; i++) if (list[i] && list[i].id === 'org.tizen.menu') present = true;
+        if (!present) {
+          finish({
+            message: 'This TV did not list org.tizen.menu.',
+            detail: 'com.samsung.tv.coba.setting is not launched. A plain launch of that id can be accepted while Settings stays hidden. Inputs uses the source API and org.tizen.tv-viewer, which is a different application.'
+          });
+          return;
+        }
+        try {
+          var control = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/default', null, null, null, null);
+          appApi.launchAppControl(control, 'org.tizen.menu', function () {
+            finish(null, { accepted: true, shown: false, id: 'org.tizen.menu' });
+          }, function (err) { finish(failure(err)); });
+        } catch (err) { finish(failure(err)); }
+      }, function (err) { finish(failure(err)); });
+    } catch (err) { finish(failure(err)); }
+  }
   function apps(done) {
     if (!api()) { unavailable(done); return; }
     // Large installed catalogues can take longer than a launch response.

@@ -13,9 +13,11 @@ const CATALOG = IDS.map((id, i) => ({ id, name: NAMES[i], show: true, iconPath: 
   { id: EXTRA, name: UNSAFE_NAME, show: true, iconPath: '' },
   { id: SPOTIFY, name: 'Spotify', show: true, iconPath: '' },
   { id: '5b8c3eb16b.BeamCTVDev', name: 'HBO Max', show: true, iconPath: '' },
-  { id: 'nClrkHome1.FrameHome', name: 'CleanFrame', show: true },
+  { id: 'NZsRORBcn0.WesleyCleanFrame', name: 'CleanFrame', show: true },
   { id: 'AbCdEf1234.worker', name: 'Background worker', show: true },
-  { id: 'com.samsung.tv.cobalt-yt', name: 'YouTube', show: true }
+  { id: 'com.samsung.tv.cobalt-yt', name: 'YouTube', show: true },
+  { id: 'org.tizen.menu', name: 'Menu', show: true },
+  { id: 'com.samsung.tv.coba.setting', name: 'Setting', show: false }
 ]);
 const walls = JSON.parse(readFileSync(root + 'app/assets/wallpapers/SOURCES.json', 'utf8'));
 const out = root + '.local/qa/';
@@ -81,7 +83,7 @@ function installHarness({ seed, legacy, mock, catalog, minuteMs, catalogFailure,
     ApplicationControlData: function (key, value) { this.key = key; this.value = value; },
     ApplicationControl: function (operation, uri, mime, category, data) { Object.assign(this, { operation, uri, mime, category, data }); },
     application: {
-      getCurrentApplication() { return { appInfo: { id: currentAppId || 'nClrkHome1.FrameHome' } }; },
+      getCurrentApplication() { return { appInfo: { id: currentAppId || 'NZsRORBcn0.WesleyCleanFrame' } }; },
       getAppsInfo(ok, fail) {
         const tv = window.__tv;
         tv.catalogCalls++;
@@ -229,6 +231,30 @@ async function noLiveFilters() {
 
 try {
   preview = await openPreview();
+  const SEVEN = ['appletv', 'hulu', 'netflix', 'primevideo', 'paramountplus', 'youtube', 'disneyplus'];
+  await run('Seven-streaming preset and browser limits', async () => {
+    await page({ seed: undefined, mock: false });
+    const fresh = await state();
+    check('Fresh Home uses the seven streaming apps', same(fresh.dock, SEVEN), fresh.dock);
+    check('Preset is saved without replacing a later edited order', same((await stored()).dock, SEVEN));
+    check('Browser states that launching and Art Mode need the TV', (await current.locator('#previewLimit').textContent()).includes('Launching apps and Art Mode need the TV') && (await current.locator('#previewLimit').textContent()).includes('launcher wallpaper, not Samsung Art Mode'));
+    check('Preview note is not a remote target', await current.locator('#previewLimit').evaluate(el => getComputedStyle(el).pointerEvents === 'none' && getComputedStyle(el).display === 'block'));
+    await look({ layout: 'list' });
+    check('List keeps the same seven apps', same((await state()).dock, SEVEN) && (await state()).look.layout === 'list');
+    await act('util.art');
+    await current.waitForFunction(() => ShoreQA.where().view === 'message');
+    check('Art Mode in the browser asks for the TV', /Art Mode/.test(await current.locator('#stage').innerText()) && /TV/.test(await current.locator('#stage').innerText()));
+    await closePage();
+    await page({ seed: undefined });
+    await look({ layout: 'list' });
+    for (const [id, appId] of [['hulu', 'LBUAQX1exg.Hulu'], ['paramountplus', 'rJyOSqC6Up.CBSAllAccess'], ['appletv', 'com.samsung.tv.aria-video'], ['netflix', 'org.tizen.netflix-app'], ['youtube', '9Ur5IzDKqV.TizenYouTube'], ['disneyplus', 'MCmYXNxgcu.DisneyPlus'], ['primevideo', 'org.tizen.primevideo']]) {
+      await act('home.app.' + id);
+      await current.waitForFunction(expected => window.__tv.calls.some(call => call.method === 'launch' && call.id === expected), appId);
+    }
+    const calls = await current.evaluate(() => __tv.calls.filter(call => call.method === 'launch').map(call => call.id));
+    check('Candidate launches use application IDs', same(calls, ['LBUAQX1exg.Hulu', 'rJyOSqC6Up.CBSAllAccess', 'com.samsung.tv.aria-video', 'org.tizen.netflix-app', '9Ur5IzDKqV.TizenYouTube', 'MCmYXNxgcu.DisneyPlus', 'org.tizen.primevideo']), calls);
+    check('Mock does not show the browser-only note', await current.locator('#previewLimit').evaluate(el => getComputedStyle(el).display === 'none'));
+  });
   await run('Legacy preference migration', async () => {
     for (const theme of ['list', 'shore', 'grid']) {
       await page({ seed: baseline({ theme, dock: ['youtube', 'netflix'], wallpaper: walls[1].id, lastApp: 'youtube', mode: '15' }) });
@@ -250,7 +276,7 @@ try {
     await closePage();
     await page({ seed: { dock: [], wallpaper: 'missing', mode: 'constructor', theme: 'constructor' } });
     const s = await state();
-    check('Invalid values recover usable bounded Home', s.dock.length >= 1 && s.dock.length <= 9 && walls.some(w => w.id === s.wallpaper) && ['fixed', 'open', '5', '15', '60'].includes(s.mode), s);
+    check('Invalid values recover the seven-app preset', same(s.dock, ['appletv', 'hulu', 'netflix', 'primevideo', 'paramountplus', 'youtube', 'disneyplus']) && walls.some(w => w.id === s.wallpaper) && ['fixed', 'open', '5', '15', '60'].includes(s.mode), s);
     await closePage();
     await page({ seed: baseline({ dock: [EXTRA, 'netflix'], lastApp: EXTRA }), catalogFailure: true });
     await library();
@@ -348,7 +374,7 @@ try {
         await look({ bg: 'photo', layout, controls, focus: 'glass', font: 'manrope' }); await scene('home');
         if ((await call('where')).zone === 'util') await nav('back');
         await nav(layout === 'dock' ? 'up' : 'right');
-        await nav(...Array(3).fill(layout === 'dock' ? 'left' : 'up'));
+        await nav(...Array(4).fill(layout === 'dock' ? 'left' : 'up'));
         await current.waitForTimeout(180);
         const spacing = await current.evaluate(({ layout, controls }) => {
           const scale = document.getElementById('stage').getBoundingClientRect().width / 1920;
@@ -361,9 +387,9 @@ try {
           });
         }, { layout, controls });
         check(layout + '/' + controls + ' uses spacing between visible children at ' + width,
-          spacing.length === 3 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
+          spacing.length === 5 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
         const focused = [];
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 5; i++) {
           if (i) await nav(layout === 'dock' ? 'right' : 'down');
           focused.push(await current.evaluate(() => {
             const button = document.querySelector('#utils .u.is-focus'), lens = document.querySelector('.ut-lens.is-current');
@@ -473,14 +499,105 @@ try {
     check('Samsung escape keeps CSFS target', (await current.evaluate(() => __tv.calls.at(-1))).id === 'com.samsung.tv.csfs');
     await current.evaluate(() => window.dispatchEvent(new Event('focus'))); await group('samsung'); await act('samsung.settings');
     await current.waitForFunction(() => __tv.calls.length === 5);
-    check('TV settings keeps installed target', (await current.evaluate(() => __tv.calls.at(-1))).id === 'com.samsung.tv.coba.setting');
+    const settingsCall = await current.evaluate(() => ({ call: __tv.calls.at(-1), headless: __tv.calls.some(call => call.id === 'com.samsung.tv.coba.setting' || call.method === 'setSource') }));
+    check('TV settings requests the listed menu application without a regional file or the headless id', settingsCall.call.method === 'launchAppControl' && settingsCall.call.id === 'org.tizen.menu' && settingsCall.call.control.operation === 'http://tizen.org/appcontrol/operation/default' && settingsCall.call.control.uri == null && settingsCall.call.control.data == null && settingsCall.headless === false, settingsCall);
+    await current.waitForFunction(() => ShoreQA.where().view === 'message');
+    const accepted = await current.locator('#stage').innerText();
+    check('An accepted menu request is not reported as Settings appearing', /accepted/i.test(accepted) && /not confirmed/i.test(accepted) && !/\b(opened|success)\b/i.test(accepted), accepted);
+    await current.evaluate(() => { __tv.savedCatalog = __tv.catalog.slice(); __tv.catalog = __tv.catalog.filter(app => app.id !== 'org.tizen.menu'); __tv.calls = []; });
+    await scene('home'); await group('samsung'); await act('samsung.settings');
+    await current.waitForFunction(() => ShoreQA.where().view === 'message');
+    const missing = await current.locator('#stage').innerText();
+    check('A missing menu application does not launch the headless settings id', /org\.tizen\.menu/.test(missing) && /coba\.setting/.test(missing) && (await current.evaluate(() => __tv.calls.length)) === 0, missing);
+    await current.evaluate(() => { __tv.catalog = __tv.savedCatalog; __tv.launchFailure = true; __tv.calls = []; });
+    await scene('home'); await group('samsung'); await act('samsung.settings');
+    await current.waitForFunction(() => ShoreQA.where().view === 'message');
+    const refused = await current.evaluate(() => ({ text: document.getElementById('stage').innerText, calls: __tv.calls.slice() }));
+    check('A refused menu request stays an error without another target', /could not|unavailable/i.test(refused.text) && refused.calls.length === 1 && refused.calls[0].id === 'org.tizen.menu' && refused.calls[0].method === 'launchAppControl', refused);
+    await current.evaluate(() => { __tv.launchFailure = false; __tv.calls = []; });
+    await scene('home');
     await current.evaluate(() => { window.dispatchEvent(new Event('focus')); __tv.launchFailure = true; });
     await scene('home'); await act('home.app.netflix'); await current.waitForFunction(() => ShoreQA.where().view === 'message');
     check('Launch failure is shown', /could not|unavailable|try again/i.test(await current.locator('#stage').innerText()));
   });
+  await run('Samsung Home escape and in-app Back', async () => {
+    await page();
+    await current.evaluate(() => {
+      __tv.lifecycle = [];
+      const read = tizen.application.getCurrentApplication.bind(tizen.application);
+      tizen.application.getCurrentApplication = () => {
+        const app = read();
+        app.exit = () => { __tv.lifecycle.push('exit'); };
+        app.hide = () => { __tv.lifecycle.push('hide'); };
+        return app;
+      };
+    });
+    for (const layout of ['dock', 'list']) {
+      await look({ layout, controls: 'both' }); await scene('home');
+      const labels = await current.locator('#utils .u').evaluateAll(els => els.map(el => el.getAttribute('aria-label')));
+      check(layout + ' controls keep Home and Samsung Home distinct', same(labels, ['Art Mode', 'All apps', 'Settings', 'Home', 'Samsung Home']), labels);
+      await nav(layout === 'dock' ? 'up' : 'right');
+      await nav(...Array(4).fill(layout === 'dock' ? 'left' : 'up'));
+      check(layout + ' remote starts on Art Mode', (await call('where')).focusAction === 'util.art');
+      await nav(...Array(4).fill(layout === 'dock' ? 'right' : 'down'));
+      check(layout + ' remote reaches Samsung Home', (await call('where')).focusAction === 'util.samsung' && (await call('where')).focus === 'Samsung Home');
+      await current.screenshot({ path: out + 'samsung-home-' + layout + '-1920.png' });
+      await nav('back');
+      check(layout + ' Back from Samsung Home returns to the selected app', (await call('where')).zone === 'apps' && (await current.evaluate(() => __tv.calls.length)) === 0);
+    }
+    await look({ layout: 'dock', controls: 'both' }); await scene('home');
+    const order = (await state()).dock.slice();
+    const writes = (await state()).writes;
+    await nav('up', 'left');
+    check('Launcher Home is distinct from Samsung Home', (await call('where')).focusAction === 'util.launcher' && (await call('where')).focus === 'Home');
+    await current.screenshot({ path: out + 'cleanframe-home-dock-1920.png' });
+    await act('util.launcher');
+    check('Home on the launcher does not launch or rewrite the app order', (await call('where')).view === 'home' && (await call('where')).zone === 'apps' && (await current.evaluate(() => __tv.calls.length)) === 0 && same((await state()).dock, order) && (await state()).writes === writes);
+    await scene('settings'); await nav('up');
+    check('Settings reaches CleanFrame Home', (await call('where')).focusAction === 'settings.launcher');
+    await act('settings.launcher');
+    check('Settings Home returns to the launcher', (await call('where')).view === 'home' && same((await state()).dock, order) && (await state()).writes === writes);
+    await library(); await nav('up', 'right');
+    check('All apps reaches CleanFrame Home', (await call('where')).focusAction === 'apps.launcher');
+    await act('apps.launcher');
+    check('All apps Home keeps the saved order', (await call('where')).view === 'home' && same((await state()).dock, order));
+    await editor();
+    for (let i = 0; i < 12 && (await call('where')).zone !== 'head'; i++) await nav('up');
+    await nav('right', 'right');
+    check('Editor reaches CleanFrame Home', (await call('where')).focusAction === 'editor.launcher' && (await call('where')).zone === 'head');
+    await act('editor.launcher');
+    check('Editor Home keeps completed apps and drops no saved order', (await call('where')).view === 'home' && same((await state()).dock, order) && (await state()).writes === writes);
+    await group('background');
+    for (let i = 0; i < 6 && (await call('where')).focusAction !== 'settings.back'; i++) await nav('up');
+    await nav('right');
+    check('Background can focus CleanFrame Home without leaving through Samsung', (await call('where')).focusAction === 'launcher.home');
+    await act('launcher.home');
+    check('Appearance Home restores the launcher', (await call('where')).view === 'home' && same((await stored()).dock, order) && (await state()).writes === writes);
+    await act('util.samsung');
+    await current.waitForFunction(() => __tv.calls.length === 1);
+    const opened = await current.evaluate(() => ({ call: __tv.calls[0], lifecycle: __tv.lifecycle.slice(), view: ShoreQA.where().view }));
+    check('Samsung Home uses the CSFS launch and stays resident until the TV accepts it', opened.call.method === 'launch' && opened.call.id === 'com.samsung.tv.csfs' && opened.lifecycle.length === 0 && opened.view === 'home', opened);
+    await current.evaluate(() => { __tv.launchFailure = true; });
+    await act('util.samsung');
+    await current.waitForFunction(() => ShoreQA.where().view === 'message');
+    check('A refused Samsung Home launch stays in CleanFrame', /Samsung Home/.test(await current.locator('#stage').innerText()) && /could not|unavailable/i.test(await current.locator('#stage').innerText()) && (await current.evaluate(() => __tv.lifecycle.length)) === 0);
+    await nav('back');
+    check('Back closes the launch error without another launch', (await call('where')).view === 'home' && (await current.evaluate(() => __tv.calls.length)) === 2);
+    await nav('back');
+    check('Back from the Samsung Home control returns to the apps', (await call('where')).zone === 'apps' && (await current.evaluate(() => __tv.calls.length)) === 2);
+    await nav('back');
+    check('Back on the CleanFrame apps opens the in-app choice and does not launch', (await call('where')).view === 'message' && /Open Samsung Home/.test(await current.locator('.msg-line').innerText()) && (await current.evaluate(() => __tv.calls.length)) === 2);
+    await act('message.stay');
+    check('Stay keeps CleanFrame and its saved Home', (await call('where')).view === 'home' && same((await state()).dock, (await state()).committed.home));
+    await current.evaluate(() => { __tv.launchFailure = false; });
+    await scene('home'); await act('home.app.youtube');
+    await current.waitForFunction(() => __tv.calls.at(-1).id === '9Ur5IzDKqV.TizenYouTube');
+    const youtube = await current.evaluate(() => __tv.calls.at(-1));
+    check('YouTube uses application.launch with no return callback', youtube.method === 'launch' && !youtube.control, youtube);
+  });
   await run('Independent app identity self-filter', async () => {
     const appId = 'AbCdEf1234.MyHome';
-    await page({ currentAppId: appId, catalog: CATALOG.filter(a => a.id !== 'nClrkHome1.FrameHome').concat({ id: appId, name: 'Family Home', show: true }) });
+    await page({ currentAppId: appId, catalog: CATALOG.filter(a => a.id !== 'NZsRORBcn0.WesleyCleanFrame').concat({ id: appId, name: 'Family Home', show: true }) });
     await library();
     const independent = await state();
     const names = await current.locator('[data-action^="apps.open."] .label').allTextContents();
@@ -490,7 +607,7 @@ try {
     await current.evaluate(() => { delete tizen.application.getCurrentApplication; });
     await library();
     const fallback = await state();
-    check('Unavailable current-app API keeps reference identity fallback', fallback.catalog.ids.includes(EXTRA) && !fallback.catalog.ids.includes('nClrkHome1.FrameHome'));
+    check('Unavailable current-app API keeps the owner identity fallback', fallback.catalog.ids.includes(EXTRA) && !fallback.catalog.ids.includes('NZsRORBcn0.WesleyCleanFrame'));
   });
   await run('Catalogue failure and retry', async () => {
     await page({ catalogFailure: true }); await library();
@@ -642,6 +759,10 @@ try {
       if (firstRadio) {
         await current.locator('[data-action="' + firstRadio.action + '"]').hover();
         check(name + ' pointer hover does not apply a choice', same(await settingsSnapshot(), before));
+      }
+      if ((await state()).focusAction === 'launcher.home') {
+        await nav('back');
+        check(name + ' Back leaves CleanFrame Home on the panel Back row', (await state()).focusAction === 'settings.back' && same(await settingsSnapshot(), before));
       }
       await nav('back');
       check(name + ' Back cancels the unconfirmed choice', same(await settingsSnapshot(), before) && (await state()).focusAction === 'settings.group.' + name);
