@@ -43,7 +43,7 @@ No speed, cold-boot or full-reversibility claim is made here. Nothing in this ru
 
 Installing a signed widget and assigning the system Home button are separate steps. Stop after the app is listed and can be opened from Apps. Do not run `scripts/native-home/`, do not change Home or startup keys, and do not treat an app inventory as a settings or data backup.
 
-The maintained installer in `scripts/tv.py` connects with SDB and then uses `sdb shell` for `vd_appinstall`, the installed-app list and launch. An owner report for this television says secure SDB responds and shell, root and general app commands are disabled. This checkout does not add another transport, a shell bypass or a firmware change. If the official SDK install also depends on those shell commands, stop and record the exact command and response. A file upload alone is not an installation.
+This television uses the official `tizen package` and `tizen install` commands. Do not use the repository TV installer or the native Home helper. If the official install fails, stop and record the command and response. Do not switch to another transport. A file upload alone is not an installation.
 
 `python3 scripts/manual-install-plan.py` only prints this boundary. Flags such as `--install` and `--connect` are refused. It does not read `.local/signing.json` or `.local/device.json`.
 
@@ -55,10 +55,10 @@ Do this on the owner’s Mac, with a separate approval before the first device c
 2. Install the official [Samsung TV SDK](https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html) with the TV Extension and the Samsung Certificate Extension. Record the SDK and SDB paths. Do not reuse the maintainer SDK profile name `FrameHome` unless Certificate Manager actually created that profile for this owner.
 3. On the TV, record the model and full firmware string from Settings → Support → About This TV. Enable Developer Mode with Apps → App Settings → 12345, enter the computer’s local address, and restart as the TV instructs. Connection steps are [Samsung’s device guide](https://developer.samsung.com/smarttv/develop/getting-started/using-sdk/tv-device.html).
 4. Create a new certificate profile: author certificate plus a distributor certificate that contains this TV’s DUID. Use [Certificate Manager](https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/creating-certificates.html). Back up the author certificate. An emulator certificate does not cover this television.
-5. Create the package and application IDs with the official project wizard or the SDK’s identity generator. Copy `signing.example.json` to `.local/signing.json` and set `sdk_path`, `profile`, `package_id` and `app_id` together. Leave the tracked manifest identity unchanged. `npm run package` rewrites only the generated widget.
-6. Before packaging, run `npm run check`, `npm run check:tools` and `CLEANFRAME_PUBLIC_FONTS=1 npm run check:browser` if the interface changed. Then run the dry-run planner again.
-7. Package with the owner profile. Inspect the widget manifest and confirm both IDs match `.local/signing.json` and do not match `nClrkHome1` / `nClrkHome1.FrameHome`.
-8. Install and launch only after announcing it. Prefer the official Tizen Studio or `tizen` CLI flow in [Samsung’s command-line guide](https://developer.samsung.com/smarttv/develop/getting-started/using-sdk/command-line-interface.html). Permit installation for the selected device in Device Manager. Confirm the app appears under the owner’s application ID and open it from Apps. The reference TV rejected a hand-built XML signature and treated plain `sdb install` as an upload only; those are reference observations, not a reason to invent a command for a closed shell.
+5. The official project wizard already supplied package `NZsRORBcn0` and application `NZsRORBcn0.WesleyCleanFrame`. Those are the tracked manifest and runtime self-filter values. Keep `required_version` at `5.0`. Do not copy a scaffold value of `2.3`, and do not put the reference package back into the manifest. The local certificate profile name for the next command is `WesleyFrame`.
+6. From this checkout, run `npm run export:owner`. It writes an unsigned widget and a web-payload zip under `dist/`. Copy the payload zip to the Mac. Unzip it into an empty directory. That directory is the build input. It contains no signature files and no certificates.
+7. On the Mac, in that directory’s parent, run `tizen package -t wgt -s WesleyFrame -- <build-dir>`. Inspect the signed widget’s `config.xml` and confirm package `NZsRORBcn0`, application `NZsRORBcn0.WesleyCleanFrame`, and `required_version` `5.0`. Do not sign the payload with a test or reference certificate.
+8. Install and launch only with the official `tizen install` command, after announcing it. Permit installation for the selected device in Device Manager. Confirm the installed application ID is `NZsRORBcn0.WesleyCleanFrame`, then open CleanFrame from Apps. See [Samsung’s command-line guide](https://developer.samsung.com/smarttv/develop/getting-started/using-sdk/command-line-interface.html). Do not use the repository TV installer or the native Home helper.
 9. On the TV, open All apps and compare the seven shortcuts with `getAppsInfo()`. Replace any shortcut whose candidate ID is absent. Launch each installed service with the remote. Account sign-in stays inside those apps.
 10. Confirm Art Mode separately from the wallpaper. The expected call is still `org.tizen.art-app` with fullscreen mode. A successful callback is not visual proof. Personal Art Mode photos are Samsung’s, not the launcher wallpapers.
 
@@ -66,13 +66,13 @@ Do this on the owner’s Mac, with a separate approval before the first device c
 
 Uninstalling this package is not a system Home restore. Because Home and startup were not changed, there is no native Home value to roll back. Still confirm on the television that Apps → CleanFrame is the owner’s package before removing it.
 
-The exact uninstall command must be taken from the installed SDK and checked against the package ID inside the signed widget. This repository does not ship a verified uninstall mapping for the LS03B, and a closed `sdb shell` may reject the same class of command the installer uses. Removing the app from the TV’s Apps screen, then checking that the owner’s application ID is gone and Samsung Home is unchanged, is the manual check. That check has not been done.
+The exact uninstall command must be taken from the installed SDK and checked against package `NZsRORBcn0` inside the signed widget. This repository does not ship a verified uninstall mapping for the LS03B. Removing the app from the TV’s Apps screen, then checking that `NZsRORBcn0.WesleyCleanFrame` is gone and Samsung Home is unchanged, is the manual check. That check has not been done.
 
 Keep the author certificate if you want a later in-place update of the same identity. Changing the application ID creates a different app.
 
 ## Unsigned export
 
-`npm run export:public` writes `dist/CleanFrame-public-unsigned.wgt`. It is an offline public-font archive. It is not signed, it still carries the reference source identity, and it is not an installable package. Do not sign that archive in place for the television. Build a new widget with the owner identity.
+`npm run export:owner` writes `dist/WesleyCleanFrame-unsigned.wgt` and `dist/WesleyCleanFrame-web-payload.zip`. Both are offline, public-font and unsigned. The widget is for inspection. The web payload is the directory input for `tizen package -t wgt -s WesleyFrame -- <build-dir>`. Neither file is signed, and neither should be installed as it is. The script prints the sha256 of each file. It does not read certificates or contact a television.
 
 ## Open checks before any device claim
 

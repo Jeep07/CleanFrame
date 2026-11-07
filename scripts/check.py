@@ -10,8 +10,12 @@ manifest = XML.parse(app / 'config.xml').getroot()
 ns = {'w': 'http://www.w3.org/ns/widgets', 't': 'http://tizen.org/ns/widgets'}
 identity = manifest.find('t:application', ns)
 assert identity is not None, 'Missing application identity'
-assert identity.get('package') == 'nClrkHome1', 'Keep the installed package identity stable'
-assert identity.get('id') == 'nClrkHome1.FrameHome', 'Keep the installed application ID stable'
+assert identity.get('package') == 'NZsRORBcn0', 'Keep the owner package identity stable'
+assert identity.get('id') == 'NZsRORBcn0.WesleyCleanFrame', 'Keep the owner application ID stable'
+assert identity.get('required_version') == '5.0', 'Keep the reviewed Tizen installation floor'
+device_source = (app / 'device.js').read_text()
+assert "var SELF = 'NZsRORBcn0.WesleyCleanFrame';" in device_source, 'Runtime self-filter must use the owner application ID'
+assert 'nClrkHome1' not in (app / 'config.xml').read_text() and 'nClrkHome1' not in device_source, 'Reference package must not remain a runtime identity'
 assert manifest.get('version') == json.loads((root / 'package.json').read_text())['version'], 'Manifest/package versions differ'
 for tag in ['content', 'icon']:
     node = manifest.find('w:' + tag, ns)

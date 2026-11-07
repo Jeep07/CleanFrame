@@ -1,3 +1,7 @@
+# CleanFrame 0.7.2
+
+This fork's manifest and runtime self-filter use package `NZsRORBcn0` and application `NZsRORBcn0.WesleyCleanFrame`. The Tizen installation floor stays `required_version` 5.0. `npm run export:owner` writes an unsigned public-font widget and a web payload for `tizen package -t wgt -s WesleyFrame` on the owner's Mac. No certificate, device address or television is used. Home, startup and Art Mode behaviour are unchanged.
+
 # CleanFrame 0.7.1
 
 Fresh Home on this checkout uses a seven-streaming preset: Apple TV, Hulu, Netflix, Prime Video, Paramount+, YouTube and Disney+. Saved orders are kept. Launch targets are candidate Tizen application IDs and are untested on a 2022 LS03B. Numeric service IDs and `-dummy` packages are not launched. The browser preview states that app launching and Art Mode need a television, and that the photograph is launcher wallpaper. Home, startup and Art Mode routing are unchanged. The manual-install notes are in [docs/ls03b-manual-install.md](docs/ls03b-manual-install.md). No television was connected for this change.

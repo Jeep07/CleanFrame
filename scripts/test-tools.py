@@ -41,7 +41,8 @@ class ToolTests(unittest.TestCase):
         settings = load_settings(self.root)
         self.assertEqual(settings['profile'], 'FrameHome')
         self.assertEqual(settings['sdk_path'], self.root / '.local/tizen-sdk')
-        self.assertEqual(settings['identity']['app_id'], 'nClrkHome1.FrameHome')
+        self.assertEqual(settings['identity']['package_id'], 'NZsRORBcn0')
+        self.assertEqual(settings['identity']['app_id'], 'NZsRORBcn0.WesleyCleanFrame')
         self.assertIsNone(settings['password_file'])
         password = self.password('.local/certificates/private/certificate-password.txt')
         self.assertEqual(load_settings(self.root)['password_file'], password)
@@ -113,7 +114,7 @@ class ToolTests(unittest.TestCase):
         write_widget_archive(output, root=self.root, include_private=False, identity=identity)
         with zipfile.ZipFile(output) as archive:
             self.assertEqual(manifest_identity(archive.read('config.xml')), identity)
-            expected = original.replace(b'nClrkHome1.FrameHome', b'AbCdEf1234.MyHome').replace(b'nClrkHome1', b'AbCdEf1234')
+            expected = original.replace(b'NZsRORBcn0.WesleyCleanFrame', b'AbCdEf1234.MyHome').replace(b'NZsRORBcn0', b'AbCdEf1234')
             self.assertEqual(archive.read('config.xml'), expected)
             self.assertFalse(any('password' in name for name in archive.namelist()))
         self.assertEqual((self.root / 'app/config.xml').read_bytes(), original)
