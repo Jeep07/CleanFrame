@@ -103,6 +103,8 @@
     return typeof id === 'string' && id && !/-dummy$/.test(id) && !/^[0-9]+$/.test(id);
   }
   function launchApp(id, done) {
+    // Launch in place. Do not hide or exit first: a refused launch must leave this app visible.
+    // Return inside the other app is delivered only to that app. This call does not create a caller return.
     if (!launchTarget(id)) {
       done({ message: 'This app has no verified launch target.', detail: 'Dummy packages and numeric service IDs are not used. On the TV, read the application ID from getAppsInfo.' });
       return;

@@ -1,3 +1,7 @@
+# CleanFrame 0.7.3
+
+The Home controls add Samsung Home beside Art Mode, All apps and Settings. OK uses the existing `tizen.application.launch` of `com.samsung.tv.csfs` and does not hide or exit CleanFrame first. A refused launch stays on the error message. The remote’s physical Home button, startup and Art Mode are unchanged. Return inside YouTube remains that app’s and the television’s behaviour. The launcher icon is a four-tile mark, and the package identity stays `NZsRORBcn0` / `NZsRORBcn0.WesleyCleanFrame` with `required_version` 5.0.
+
 # CleanFrame 0.7.2
 
 This fork's manifest and runtime self-filter use package `NZsRORBcn0` and application `NZsRORBcn0.WesleyCleanFrame`. The Tizen installation floor stays `required_version` 5.0. `npm run export:owner` writes an unsigned public-font widget and a web payload for `tizen package -t wgt -s WesleyFrame` on the owner's Mac. No certificate, device address or television is used. Home, startup and Art Mode behaviour are unchanged.

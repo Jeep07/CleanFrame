@@ -62,6 +62,12 @@ Do this on the owner’s Mac, with a separate approval before the first device c
 9. On the TV, open All apps and compare the seven shortcuts with `getAppsInfo()`. Replace any shortcut whose candidate ID is absent. Launch each installed service with the remote. Account sign-in stays inside those apps.
 10. Confirm Art Mode separately from the wallpaper. The expected call is still `org.tizen.art-app` with fullscreen mode. A successful callback is not visual proof. Personal Art Mode photos are Samsung’s, not the launcher wallpapers.
 
+## Return and the Samsung Home control
+
+Version 0.7.3 adds a Samsung Home control beside Art Mode, All apps and Settings. OK launches `com.samsung.tv.csfs` and does not close CleanFrame first. If the television refuses the launch, CleanFrame remains on the error. This is the same launch already used from Settings. It does not change the physical Home button.
+
+Return pressed while YouTube is in front is handled by YouTube and the television. This package cannot send that key back to CleanFrame. The supported checks are in [interaction behaviour](interaction-behaviour.md).
+
 ## Rollback of the manual package
 
 Uninstalling this package is not a system Home restore. Because Home and startup were not changed, there is no native Home value to roll back. Still confirm on the television that Apps → CleanFrame is the owner’s package before removing it.

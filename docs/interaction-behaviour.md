@@ -2,8 +2,8 @@
 
 ## Home
 
-- Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with Art Mode or the last selected control. Left/Right moves between Art Mode, All apps and Settings. Down or Back returns to the selected app. The clock is at the top left.
-- List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above. Up/Down moves between Art Mode, All apps and Settings. Left or Back returns to the selected app. The list fades at both ends as it scrolls.
+- Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with Art Mode or the last selected control. Left/Right moves between Art Mode, All apps, Settings and Samsung Home. Down or Back returns to the selected app. The clock is at the top left.
+- List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above. Up/Down moves between Art Mode, All apps, Settings and Samsung Home. Left or Back returns to the selected app. The list fades at both ends as it scrolls.
 - OK opens the selected item. Focus alone never launches an app.
 - Icons-only apps and controls reveal their names when focused. App presentation and control presentation are independent.
 - Back from the app list or Dock opens a choice to stay or open Samsung Home.
@@ -58,7 +58,21 @@ Art Mode sends an application control to the installed `org.tizen.art-app`, with
 
 This mode comes from [research on Samsung's Art app](https://github.com/TheFab21/ha-samsungtv-smart/blob/master/notes/QN55LS03FAFXZA/ART_MODE_DECOMPILED.md), on another Tizen 9 Frame model. It is an internal Samsung contract, not a documented public Art API. Its visible behaviour on this exact firmware must be confirmed on the TV.
 
-Samsung Home explicitly launches the original `com.samsung.tv.csfs` app, independently of the new Home assignment. The earlier `com.samsung.tv.coba.newhome` component did not open Smart Hub visibly and is no longer the escape target. TV settings still uses `com.samsung.tv.coba.setting`. Exact on-device destinations are recorded in docs/tv-status.md; launch callbacks alone are not visual proof. There is no blind power-key fallback.
+Samsung Home, both in the top-row control and in Settings → Samsung, launches `com.samsung.tv.csfs` with `tizen.application.launch`. The same call is used by the Dock or List Back choice. CleanFrame does not call `hide()` or `exit()` before that launch, so a refused launch leaves CleanFrame visible and shows the error. The success callback means the television accepted the request. It is not visual proof that Samsung Home appeared. This does not change the remote’s physical Home button, startup, autostart, or any native Home assignment. The earlier `com.samsung.tv.coba.newhome` component did not open Smart Hub visibly and is no longer the escape target. TV settings still uses `com.samsung.tv.coba.setting`. Exact on-device destinations are recorded in docs/tv-status.md. There is no blind power-key fallback.
+
+## Return inside another app
+
+Back while CleanFrame is visible moves inside CleanFrame: it closes one panel, or from the Dock or List opens the choice to stay or open Samsung Home. That key handling stops when another application is in front.
+
+A normal signed web app cannot make YouTube’s Return key open CleanFrame. Samsung delivers remote keys, including Return, to the focused application. `tizen.application.launch` does not install a return-to-caller contract. `launchAppControl` delivers a result only when the launched application calls `replyResult()` or `replyFailure()`. YouTube does not send that reply. `GROUP` requests a launch into the caller’s subgroup, and a `SINGLE` value in the launched application’s manifest overrides the request. Tizen’s application-group guide says applications in one group are hidden and exited together, and resuming the caller shows the subgroup again. That is not a Return path back to CleanFrame. The television’s own Home behaviour is what shows Samsung Home after Return inside YouTube. CleanFrame does not register a global key, poll in the background, or relaunch itself to change that. Doing so would require a Home reassignment or another system change, which this build does not make.
+
+## Sources for that limit
+
+- [Samsung multitasking](https://developer.samsung.com/smarttv/develop/guides/fundamentals/multitasking.html): another application hides this one and pauses its JavaScript. `visibilitychange` reports the change. It does not say that the other app’s Return resumes the caller.
+- [Samsung terminating applications](https://developer.samsung.com/smarttv/develop/guides/fundamentals/terminating-applications.html) and [common certification checks](https://developer.samsung.com/smarttv/develop/development-checklist/common.html), case CO-US-05: Return on an application’s own home page closes that application and shows Smart Hub, or the TV channel on some models since 2016. A launch from the Apps screen returns to Smart Hub. That policy is implemented by the foreground app.
+- [Samsung Application API](https://developer.samsung.com/smarttv/develop/api-references/tizen-web-device-api-references/application-api.html): `launch`, `launchAppControl`, `replyResult`, and `ApplicationControlLaunchMode` (`SINGLE` or `GROUP`). A `SINGLE` manifest value overrides `GROUP`.
+- [Tizen application controls](https://docs.tizen.org/application/web/guides/app-management/app-controls/): the launched application must call `replyResult()` or `replyFailure()` before the caller receives a result.
+- [Tizen application groups](https://developer.tizen.org/development/guides/web-application/application-management/application-groups): applications in one group are hidden and exited together. Resuming the caller shows the subgroup again.
 
 All calls have bounded response handling. A failure leaves CleanFrame usable. No simulated device success views remain. Browser validation cannot confirm the visible Samsung destination.
 

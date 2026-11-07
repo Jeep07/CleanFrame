@@ -16,6 +16,10 @@ assert identity.get('required_version') == '5.0', 'Keep the reviewed Tizen insta
 device_source = (app / 'device.js').read_text()
 assert "var SELF = 'NZsRORBcn0.WesleyCleanFrame';" in device_source, 'Runtime self-filter must use the owner application ID'
 assert 'nClrkHome1' not in (app / 'config.xml').read_text() and 'nClrkHome1' not in device_source, 'Reference package must not remain a runtime identity'
+main_source = (app / 'main.js').read_text()
+assert '.exit(' not in device_source and '.hide(' not in device_source and '.exit(' not in main_source and '.hide(' not in main_source, 'Launch must not hide or exit before the television answers'
+assert "launchApp('com.samsung.tv.csfs', done)" in device_source, 'Samsung Home must keep the established launch target'
+assert 'registerKey' not in device_source and 'registerKey' not in main_source, 'Do not register remote keys beyond the focused page'
 assert manifest.get('version') == json.loads((root / 'package.json').read_text())['version'], 'Manifest/package versions differ'
 for tag in ['content', 'icon']:
     node = manifest.find('w:' + tag, ns)

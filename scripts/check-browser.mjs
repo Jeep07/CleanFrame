@@ -385,9 +385,9 @@ try {
           });
         }, { layout, controls });
         check(layout + '/' + controls + ' uses spacing between visible children at ' + width,
-          spacing.length === 3 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
+          spacing.length === 4 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
         const focused = [];
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 4; i++) {
           if (i) await nav(layout === 'dock' ? 'right' : 'down');
           focused.push(await current.evaluate(() => {
             const button = document.querySelector('#utils .u.is-focus'), lens = document.querySelector('.ut-lens.is-current');
@@ -501,6 +501,53 @@ try {
     await current.evaluate(() => { window.dispatchEvent(new Event('focus')); __tv.launchFailure = true; });
     await scene('home'); await act('home.app.netflix'); await current.waitForFunction(() => ShoreQA.where().view === 'message');
     check('Launch failure is shown', /could not|unavailable|try again/i.test(await current.locator('#stage').innerText()));
+  });
+  await run('Samsung Home escape and in-app Back', async () => {
+    await page();
+    await current.evaluate(() => {
+      __tv.lifecycle = [];
+      const read = tizen.application.getCurrentApplication.bind(tizen.application);
+      tizen.application.getCurrentApplication = () => {
+        const app = read();
+        app.exit = () => { __tv.lifecycle.push('exit'); };
+        app.hide = () => { __tv.lifecycle.push('hide'); };
+        return app;
+      };
+    });
+    for (const layout of ['dock', 'list']) {
+      await look({ layout, controls: 'both' }); await scene('home');
+      const labels = await current.locator('#utils .u').evaluateAll(els => els.map(el => el.getAttribute('aria-label')));
+      check(layout + ' controls keep Samsung Home beside the existing controls', same(labels, ['Art Mode', 'All apps', 'Settings', 'Samsung Home']), labels);
+      await nav(layout === 'dock' ? 'up' : 'right');
+      await nav(...Array(3).fill(layout === 'dock' ? 'left' : 'up'));
+      check(layout + ' remote starts on Art Mode', (await call('where')).focusAction === 'util.art');
+      await nav(...Array(3).fill(layout === 'dock' ? 'right' : 'down'));
+      check(layout + ' remote reaches Samsung Home', (await call('where')).focusAction === 'util.samsung' && (await call('where')).focus === 'Samsung Home');
+      await current.screenshot({ path: out + 'samsung-home-' + layout + '-1920.png' });
+      await nav('back');
+      check(layout + ' Back from Samsung Home returns to the selected app', (await call('where')).zone === 'apps' && (await current.evaluate(() => __tv.calls.length)) === 0);
+    }
+    await act('util.samsung');
+    await current.waitForFunction(() => __tv.calls.length === 1);
+    const opened = await current.evaluate(() => ({ call: __tv.calls[0], lifecycle: __tv.lifecycle.slice(), view: ShoreQA.where().view }));
+    check('Samsung Home uses the CSFS launch and stays resident until the TV accepts it', opened.call.method === 'launch' && opened.call.id === 'com.samsung.tv.csfs' && opened.lifecycle.length === 0 && opened.view === 'home', opened);
+    await current.evaluate(() => { __tv.launchFailure = true; });
+    await act('util.samsung');
+    await current.waitForFunction(() => ShoreQA.where().view === 'message');
+    check('A refused Samsung Home launch stays in CleanFrame', /Samsung Home/.test(await current.locator('#stage').innerText()) && /could not|unavailable/i.test(await current.locator('#stage').innerText()) && (await current.evaluate(() => __tv.lifecycle.length)) === 0);
+    await nav('back');
+    check('Back closes the launch error without another launch', (await call('where')).view === 'home' && (await current.evaluate(() => __tv.calls.length)) === 2);
+    await nav('back');
+    check('Back from the Samsung Home control returns to the apps', (await call('where')).zone === 'apps' && (await current.evaluate(() => __tv.calls.length)) === 2);
+    await nav('back');
+    check('Back on the CleanFrame apps opens the in-app choice and does not launch', (await call('where')).view === 'message' && /Open Samsung Home/.test(await current.locator('.msg-line').innerText()) && (await current.evaluate(() => __tv.calls.length)) === 2);
+    await act('message.stay');
+    check('Stay keeps CleanFrame and its saved Home', (await call('where')).view === 'home' && same((await state()).dock, (await state()).committed.home));
+    await current.evaluate(() => { __tv.launchFailure = false; });
+    await scene('home'); await act('home.app.youtube');
+    await current.waitForFunction(() => __tv.calls.at(-1).id === '9Ur5IzDKqV.TizenYouTube');
+    const youtube = await current.evaluate(() => __tv.calls.at(-1));
+    check('YouTube uses application.launch with no return callback', youtube.method === 'launch' && !youtube.control, youtube);
   });
   await run('Independent app identity self-filter', async () => {
     const appId = 'AbCdEf1234.MyHome';
