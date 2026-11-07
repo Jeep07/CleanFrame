@@ -229,6 +229,30 @@ async function noLiveFilters() {
 
 try {
   preview = await openPreview();
+  const SEVEN = ['appletv', 'hulu', 'netflix', 'primevideo', 'paramountplus', 'youtube', 'disneyplus'];
+  await run('Seven-streaming preset and browser limits', async () => {
+    await page({ seed: undefined, mock: false });
+    const fresh = await state();
+    check('Fresh Home uses the seven streaming apps', same(fresh.dock, SEVEN), fresh.dock);
+    check('Preset is saved without replacing a later edited order', same((await stored()).dock, SEVEN));
+    check('Browser states that launching and Art Mode need the TV', (await current.locator('#previewLimit').textContent()).includes('Launching apps and Art Mode need the TV') && (await current.locator('#previewLimit').textContent()).includes('launcher wallpaper, not Samsung Art Mode'));
+    check('Preview note is not a remote target', await current.locator('#previewLimit').evaluate(el => getComputedStyle(el).pointerEvents === 'none' && getComputedStyle(el).display === 'block'));
+    await look({ layout: 'list' });
+    check('List keeps the same seven apps', same((await state()).dock, SEVEN) && (await state()).look.layout === 'list');
+    await act('util.art');
+    await current.waitForFunction(() => ShoreQA.where().view === 'message');
+    check('Art Mode in the browser asks for the TV', /Art Mode/.test(await current.locator('#stage').innerText()) && /TV/.test(await current.locator('#stage').innerText()));
+    await closePage();
+    await page({ seed: undefined });
+    await look({ layout: 'list' });
+    for (const [id, appId] of [['hulu', 'LBUAQX1exg.Hulu'], ['paramountplus', 'rJyOSqC6Up.CBSAllAccess'], ['appletv', 'com.samsung.tv.aria-video'], ['netflix', 'org.tizen.netflix-app'], ['youtube', '9Ur5IzDKqV.TizenYouTube'], ['disneyplus', 'MCmYXNxgcu.DisneyPlus'], ['primevideo', 'org.tizen.primevideo']]) {
+      await act('home.app.' + id);
+      await current.waitForFunction(expected => window.__tv.calls.some(call => call.method === 'launch' && call.id === expected), appId);
+    }
+    const calls = await current.evaluate(() => __tv.calls.filter(call => call.method === 'launch').map(call => call.id));
+    check('Candidate launches use application IDs', same(calls, ['LBUAQX1exg.Hulu', 'rJyOSqC6Up.CBSAllAccess', 'com.samsung.tv.aria-video', 'org.tizen.netflix-app', '9Ur5IzDKqV.TizenYouTube', 'MCmYXNxgcu.DisneyPlus', 'org.tizen.primevideo']), calls);
+    check('Mock does not show the browser-only note', await current.locator('#previewLimit').evaluate(el => getComputedStyle(el).display === 'none'));
+  });
   await run('Legacy preference migration', async () => {
     for (const theme of ['list', 'shore', 'grid']) {
       await page({ seed: baseline({ theme, dock: ['youtube', 'netflix'], wallpaper: walls[1].id, lastApp: 'youtube', mode: '15' }) });
@@ -250,7 +274,7 @@ try {
     await closePage();
     await page({ seed: { dock: [], wallpaper: 'missing', mode: 'constructor', theme: 'constructor' } });
     const s = await state();
-    check('Invalid values recover usable bounded Home', s.dock.length >= 1 && s.dock.length <= 9 && walls.some(w => w.id === s.wallpaper) && ['fixed', 'open', '5', '15', '60'].includes(s.mode), s);
+    check('Invalid values recover the seven-app preset', same(s.dock, ['appletv', 'hulu', 'netflix', 'primevideo', 'paramountplus', 'youtube', 'disneyplus']) && walls.some(w => w.id === s.wallpaper) && ['fixed', 'open', '5', '15', '60'].includes(s.mode), s);
     await closePage();
     await page({ seed: baseline({ dock: [EXTRA, 'netflix'], lastApp: EXTRA }), catalogFailure: true });
     await library();

@@ -1,10 +1,13 @@
 /* Public Tizen application APIs. No Mac server, network address or credentials. */
 (function () {
   'use strict';
+  /* Candidate application IDs for tizen.application.launch. Numeric Samsung
+     content IDs and *-dummy packages are not launch targets. LS03B is untested. */
   var IDS = {
-    stremio: 'IkWsFHtOY9.Stremio', netflix: 'org.tizen.netflix-app',
-    disneyplus: 'MCmYXNxgcu.DisneyPlus', youtube: '9Ur5IzDKqV.TizenYouTube',
-    appletv: 'com.samsung.tv.aria-video', primevideo: 'org.tizen.primevideo',
+    appletv: 'com.samsung.tv.aria-video', hulu: 'LBUAQX1exg.Hulu',
+    netflix: 'org.tizen.netflix-app', primevideo: 'org.tizen.primevideo',
+    paramountplus: 'rJyOSqC6Up.CBSAllAccess', youtube: '9Ur5IzDKqV.TizenYouTube',
+    disneyplus: 'MCmYXNxgcu.DisneyPlus', stremio: 'IkWsFHtOY9.Stremio',
     abciview: 'mWK87Xghap.ABCiview', sbs: 'OyE7OuxlUi.SBSOnDemand',
     applemusic: 'org.tizen.apple.apple-music'
   };
@@ -96,7 +99,14 @@
       } catch (error) { finish(failure(error)); }
     });
   }
+  function launchTarget(id) {
+    return typeof id === 'string' && id && !/-dummy$/.test(id) && !/^[0-9]+$/.test(id);
+  }
   function launchApp(id, done) {
+    if (!launchTarget(id)) {
+      done({ message: 'This app has no verified launch target.', detail: 'Dummy packages and numeric service IDs are not used. On the TV, read the application ID from getAppsInfo.' });
+      return;
+    }
     if (!api()) { unavailable(done); return; }
     var finish = bounded(done);
     try { api().launch(id, function () { finish(null); }, function (err) { finish(failure(err)); }); }

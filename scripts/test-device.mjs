@@ -76,6 +76,38 @@ test('regional streaming apps stay distinct and system helpers stay hidden', () 
   assert.equal(apps.find(a => a.name === 'HBO Max').brand, 'hbomax');
 });
 
+test('seven-streaming candidates use application IDs and reject dummy or numeric service IDs', () => {
+  const h = harness();
+  for (const brand of ['appletv', 'hulu', 'netflix', 'primevideo', 'paramountplus', 'youtube', 'disneyplus']) h.device.launch(brand, () => {});
+  assert.deepEqual(h.launches.map(call => call.id), [
+    'com.samsung.tv.aria-video', 'LBUAQX1exg.Hulu', 'org.tizen.netflix-app', 'org.tizen.primevideo',
+    'rJyOSqC6Up.CBSAllAccess', '9Ur5IzDKqV.TizenYouTube', 'MCmYXNxgcu.DisneyPlus'
+  ]);
+  for (const id of ['org.tizen.primevideo-dummy', 'com.samsung.tv.aria-dummy', '3201710014981', '3201601007625', '']) {
+    let error;
+    const before = h.launches.length;
+    h.device.launchApp(id, value => { error = value; });
+    assert.equal(h.launches.length, before);
+    assert.match(error.message, /no verified launch target/);
+  }
+});
+
+test('Hulu and Paramount+ stay visible while dummy, service and numeric records stay hidden', () => {
+  const h = harness();
+  let apps;
+  h.device.apps((error, value) => { assert.equal(error, null); apps = value; });
+  h.requests[0].ok([
+    { id: 'LBUAQX1exg.Hulu', name: 'Hulu', show: false },
+    { id: 'rJyOSqC6Up.CBSAllAccess', name: 'Paramount+', show: false },
+    { id: 'org.tizen.primevideo-dummy', name: 'Prime Video', show: true },
+    { id: 'com.samsung.tv.aria-dummy', name: 'Apple TV', show: true },
+    { id: 'MCmYXNxgcu.DisneyPlusService', name: 'DisneyPlusPreviewService', show: true },
+    { id: '3201710014981', name: 'Paramount+', show: true }
+  ]);
+  assert.deepEqual(Array.from(apps, app => app.brand), ['hulu', 'paramountplus']);
+  assert.deepEqual(Array.from(apps, app => app.appId), ['LBUAQX1exg.Hulu', 'rJyOSqC6Up.CBSAllAccess']);
+});
+
 test('launch keeps its eight-second deadline independently of discovery', () => {
   const h = harness(), results = [];
   h.device.launchApp('Synthetic.App', error => results.push(error));

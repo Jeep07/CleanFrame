@@ -31,6 +31,8 @@ with me. Stop before native Home/startup changes; installation alone
 does not authorise those changes. Keep a private setup/recovery record.
 ```
 
+For a 2022 LS03B public-font preview and a manual-open plan that does not change Home, read [docs/ls03b-manual-install.md](ls03b-manual-install.md). `python3 scripts/manual-install-plan.py` only prints that boundary. It does not authorise a device connection.
+
 The setup guide supplies the stage-by-stage instructions and completion criteria. For an independent signed build, use `signing.example.json` to create ignored `.local/signing.json` with the owner's SDK, existing certificate profile and SDK-generated identity. Packaging overrides only the output manifest; the installer/launcher use the same local identity and the runtime self-filter reads Tizen's current application ID. Keep the source identity assertions as protection for the reference source. The native helper target and firmware guards still need separate review if that optional stage is requested. The maintainer's stable identity is for updates to the maintainer's installation; it is not another user's signing setup.
 
 ## Native Home and startup

@@ -33,7 +33,7 @@ The selected font applies to Home app names, the clock and Home controls, includ
 
 ## Streaming apps
 
-The nine default apps keep their known native IDs. Other installed consumer apps can also be added to Home. Launching uses the public `tizen.application.launch` API with the app's native ID. Missing apps and denied launches produce a real error. No web player, placeholder success page or account credential is embedded.
+A fresh Home uses the seven-streaming preset: Apple TV, Hulu, Netflix, Prime Video, Paramount+, YouTube and Disney+. Saved orders, including an older nine-app Home, stay as they were. Other installed consumer apps can also be added. Launching uses the public `tizen.application.launch` API with a candidate native application ID. Those IDs are recorded in [the LS03B manual-install notes](ls03b-manual-install.md) and are not confirmed on every television. Numeric Samsung content IDs and packages ending in `-dummy` are not launch targets. Missing apps and denied launches produce a real error. No web player, placeholder success page or account credential is embedded.
 
 ## All apps
 
