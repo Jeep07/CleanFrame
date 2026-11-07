@@ -1,5 +1,6 @@
 """Check that the widget manifest and its referenced files are present."""
 from pathlib import Path
+import hashlib
 import json
 import xml.etree.ElementTree as XML
 import re
@@ -19,8 +20,17 @@ assert 'nClrkHome1' not in (app / 'config.xml').read_text() and 'nClrkHome1' not
 main_source = (app / 'main.js').read_text()
 assert '.exit(' not in device_source and '.hide(' not in device_source and '.exit(' not in main_source and '.hide(' not in main_source, 'Launch must not hide or exit before the television answers'
 assert "launchApp('com.samsung.tv.csfs', done)" in device_source, 'Samsung Home must keep the established launch target'
+assert "launchApp('com.samsung.tv.coba.setting'" not in device_source, 'Do not plain-launch the headless settings id'
+assert 'ATSC/menu.json' not in device_source and '__K_EX_FORCE_BOOST' not in device_source, 'Do not ship an unverified regional menu payload'
+assert "launchAppControl(control, 'org.tizen.menu'" in device_source, 'TV settings must request the menu application only through its control'
+assert "app.launch('org.tizen.tv-viewer'" in device_source, 'Inputs must keep the TV viewer handoff'
+config_text = (app / 'config.xml').read_text()
+assert 'background-support="disable"' in config_text, 'Do not turn background support into a boot claim'
+assert 'operation/main' not in config_text and 'eden_resume' not in config_text, 'Do not add an unsupported boot or resume operation'
 assert 'registerKey' not in device_source and 'registerKey' not in main_source, 'Do not register remote keys beyond the focused page'
 assert manifest.get('version') == json.loads((root / 'package.json').read_text())['version'], 'Manifest/package versions differ'
+assert hashlib.sha256((app / 'icon.png').read_bytes()).hexdigest() == '070da055dc7d23007e3d45d29ac719f4c2d87a240176d0e9567576bacf8ccab7', 'Launcher icon must stay the selected 512 WC slate mark'
+assert hashlib.sha256((app / 'icon.svg').read_bytes()).hexdigest() == '03e458f2378a4879ddf1d17330b94254dac9face79fdc1e1d171f677a43d18ea', 'Editable launcher icon source must stay the selected WC slate SVG'
 for tag in ['content', 'icon']:
     node = manifest.find('w:' + tag, ns)
     assert node is not None and (app / node.get('src', '')).is_file(), 'Missing ' + tag + ' file'

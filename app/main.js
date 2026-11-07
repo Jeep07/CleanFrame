@@ -51,7 +51,7 @@
   var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
   var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
   var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
-  var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'], samsung: ['Samsung Home', 'home'] };
+  var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'], launcher: ['Home', 'frame'], samsung: ['Samsung Home', 'home'] };
   var MSG = {
     leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
   };
@@ -60,6 +60,7 @@
     apps: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>',
     arrange: '<path d="M4 8.5h14M15 5.5l3 3-3 3M20 15.5H6M9 12.5l-3 3 3 3"/>',
     settings: '<path d="m9 3-.6 2.4-2 1.2L4 6l-2 3.5L3.8 11v2L2 14.5 4 18l2.4-.6 2 1.2L9 21h6l.6-2.4 2-1.2 2.4.6 2-3.5-1.8-1.5v-2L22 9.5 20 6l-2.4.6-2-1.2L15 3Z"/><circle cx="12" cy="12" r="3.2"/>',
+    frame: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6" fill="currentColor" stroke="none"/>',
     home: '<path d="M4 11 12 4.5l8 6.5v8a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z"/>',
     undo: '<path d="M9 6 5 10l4 4"/><path d="M5 10h9.5a4.5 4.5 0 0 1 0 9H11"/>',
     check: '<path d="m5.5 12.5 4 4 9-9"/>',
@@ -454,9 +455,10 @@
   function perform(title, run) {
     if (busy) return;
     busy = true; busyTimer = setTimeout(release, 10000);
-    run(function (err) {
+    run(function (err, value) {
       release();
       if (err) message(title, err.message || 'The TV could not open this screen.', err.detail || '');
+      else if (value && value.accepted === true && value.shown === false) message(title, 'The TV accepted the menu request. Settings on screen is not confirmed.', 'If Settings did not appear, use Samsung Home. CleanFrame does not guess a regional menu file.');
       render(); syncRotation();
     });
   }
@@ -495,15 +497,24 @@
   }
 
   /* ---------- Navigation targets ---------- */
-  function utils() { return ['art', 'apps', 'settings', 'samsung']; }
+  function utils() { return ['art', 'apps', 'settings', 'launcher', 'samsung']; }
   /* prev/next run along the apps; out goes to the controls, inn comes back (or to a per-app action). */
   function axes() {
     var v = S.c.layout === 'list';
     return { prev: v ? 'up' : 'left', next: v ? 'down' : 'right', out: v ? 'right' : 'up', inn: v ? 'left' : 'down' };
   }
+  function showLauncher() {
+    if (top().id === 'wallpaper') cancelWallpaperTimer(top());
+    FrameDevice.cancelSource();
+    S.stack = [S.stack[0]];
+    S.stack[0].f.zone = 'apps';
+    clearSession();
+    restoreLook();
+  }
   function utilAction(u) {
     if (u === 'art') perform('Art Mode', FrameDevice.art);
     else if (u === 'apps') openApps();
+    else if (u === 'launcher') showLauncher();
     else if (u === 'samsung') perform('Samsung Home', FrameDevice.home);
     else openSettings();
   }
@@ -687,7 +698,10 @@
 
   /* ---------- Installed apps ---------- */
   function appsItems() { return catalog.error ? [] : ALPHA; }
-  function appsHead() { return catalog.error ? [['retry', 'Try again', '', '']] : [['editor', 'Apps on Home', '', 'home']]; }
+  function appsHead() {
+    var home = ['launcher', 'Home', '', 'frame'];
+    return catalog.error ? [['retry', 'Try again', '', ''], home] : [['editor', 'Apps on Home', '', 'home'], home];
+  }
   V.apps = {
     sheet: true,
     norm: function (t) {
@@ -699,18 +713,25 @@
       var f = t.f, items = appsItems(), n = items.length, col = f.i % COLS, row = Math.floor(f.i / COLS);
       if (k === 'back') { pop(); return; }
       if (f.zone === 'head') {
-        if (k === 'down' && n) f.zone = 'grid';
-        else if (k === 'ok') { if (catalog.error) refreshCatalog(); else openEditor('apps'); }
+        var head = appsHead();
+        if (k === 'left' && f.h > 0) f.h--;
+        else if (k === 'right' && f.h < head.length - 1) f.h++;
+        else if (k === 'down' && n) f.zone = 'grid';
+        else if (k === 'ok') {
+          if (head[f.h][0] === 'launcher') showLauncher();
+          else if (catalog.error) refreshCatalog();
+          else openEditor('apps');
+        }
         return;
       }
       if (k === 'left' && col > 0) f.i--;
       else if (k === 'right' && col < COLS - 1 && f.i < n - 1) f.i++;
       else if (k === 'down' && row < Math.ceil(n / COLS) - 1) f.i = Math.min(f.i + COLS, n - 1);
-      else if (k === 'up') { if (row > 0) f.i -= COLS; else f.zone = 'head'; }
+      else if (k === 'up') { if (row > 0) f.i -= COLS; else { f.zone = 'head'; f.h = 0; } }
       else if (k === 'ok' && n) launch(items[f.i]);
       S.appsFocus = items[f.i] || null;
     },
-    point: function (t, z, i) { if (z === 'grid') { t.f.zone = 'grid'; t.f.i = i; } else if (z === 'head') t.f.zone = 'head'; else return; this.key(t, 'ok'); }
+    point: function (t, z, i) { if (z === 'grid') { t.f.zone = 'grid'; t.f.i = i; } else if (z === 'head') { t.f.zone = 'head'; t.f.h = i; } else return; this.key(t, 'ok'); }
   };
 
   /* ---------- B: two-zone Home editor ---------- */
@@ -764,11 +785,11 @@
       if (k === 'back') { closeEditor(t); return; }
       if (f.zone === 'head') {
         if (k === 'left' && f.h > 0) f.h--;
-        else if (k === 'right' && f.h < 1) f.h++;
+        else if (k === 'right' && f.h < 2) f.h++;
         else if (k === 'down') { if (no) returnOther(t); else if (nh) f.zone = 'home'; }
-        else if (k === 'ok') { begin(); if (f.h === 0) undoLast(null); else closeEditor(t); }
+        else if (k === 'ok') { begin(); if (f.h === 2) showLauncher(); else if (f.h === 0) undoLast(null); else closeEditor(t); }
       } else if (f.zone === 'home') {
-        if (k === 'up') { if (f.i > 0) f.i--; else f.zone = 'head'; }
+        if (k === 'up') { if (f.i > 0) f.i--; else { f.zone = 'head'; f.h = 0; } }
         else if (k === 'down') { if (f.i < nh - 1) f.i++; }
         else if (k === 'right') { if (f.part === 'name') f.part = 'remove'; else if (no) returnOther(t); }
         else if (k === 'left') { if (f.part === 'remove') f.part = 'name'; }
@@ -778,7 +799,7 @@
           else editorRemove(t, H[f.i]);
         }
       } else {
-        if (k === 'up') { if (f.j > 0) { f.j--; rememberOther(t); } else f.zone = 'head'; }
+        if (k === 'up') { if (f.j > 0) { f.j--; rememberOther(t); } else { f.zone = 'head'; f.h = 0; } }
         else if (k === 'down') { if (f.j < no - 1) { f.j++; rememberOther(t); } }
         else if (k === 'left') { if (nh) { rememberOther(t); f.i = nearestHome(t, nh); f.zone = 'home'; f.part = 'name'; } }
         else if (k === 'ok') { begin(); editorAdd(t, O[f.j]); }
@@ -834,13 +855,22 @@
     norm: function (t) { var ids = settingsIds(); if (ids.indexOf(t.f.id) < 0) t.f.id = ids[0]; },
     key: function (t, k) {
       var ids = settingsIds(), i = Math.max(0, ids.indexOf(t.f.id));
+      if (t.f.zone === 'launcher') {
+        if (k === 'ok') { showLauncher(); return; }
+        if (k === 'down' || k === 'left' || k === 'back') t.f.zone = 'list';
+        return;
+      }
+      if (k === 'up' && i === 0) { t.f.zone = 'launcher'; return; }
       if (k === 'up' && i > 0) i--;
       else if (k === 'down' && i < ids.length - 1) i++;
       else if (k === 'back') { pop(); return; }
       t.f.id = ids[i]; S.settingsFocus = ids[i];
       if (k === 'ok') settingsOk(ids[i]);
     },
-    point: function (t, z, i, id) { if (z === 'row' && id) { t.f.id = id; this.key(t, 'ok'); } }
+    point: function (t, z, i, id) {
+      if (z === 'head') { t.f.zone = 'launcher'; this.key(t, 'ok'); return; }
+      if (z === 'row' && id) { t.f.zone = 'list'; t.f.id = id; this.key(t, 'ok'); }
+    }
   };
   function settingsOk(id) {
     if (id === 'editor') openEditor('settings');
@@ -958,6 +988,12 @@
     },
     key: function (t, k) {
       var at = detailLocation(t), row = at.row, column = at.column;
+      if (t.f.zone === 'launcher') {
+        if (k === 'ok') { showLauncher(); return; }
+        if (k === 'left' || k === 'down' || k === 'back') { t.f.zone = 'detail'; detailFocus(t, at.rows[0][0], 0); }
+        return;
+      }
+      if (k === 'right' && at.item.action === 'settings.back' && at.rows.length > 1) { t.f.zone = 'launcher'; return; }
       if (k === 'back') { detailBack(); return; }
       if (k === 'ok') { detailOk(t, at.item); return; }
       if (k === 'up' || k === 'down') {
@@ -970,6 +1006,7 @@
       }
     },
     point: function (t, z, i, action) {
+      if (z === 'launcher' || z === 'head') { t.f.zone = 'launcher'; this.key(t, 'ok'); return; }
       if (z !== 'detail') return;
       detailRows(t).some(function (items) { return items.some(function (item, column) {
         if (item.action !== action) return false;
@@ -1008,7 +1045,7 @@
   var dock = $('dock'), shelf = $('shelf'), track = $('track'), plate = $('plate'), matScrim = $('matScrim'), dockEmpty = $('dockEmpty');
   var cueL = $('cueL'), cueR = $('cueR'), dockAction = $('dockAction');
   var focusStatus = $('focusStatus'), sceneEl = $('scene'), appearanceEl = $('appearance'), appearanceRows = $('appearanceRows'), appearanceDesc = $('appearanceDesc');
-  var appearanceBack = $('appearanceBack'), appearanceTitle = $('appearanceTitle'), appearanceStatus = $('appearanceStatus');
+  var appearanceBack = $('appearanceBack'), appearanceHome = $('appearanceHome'), appearanceTitle = $('appearanceTitle'), appearanceStatus = $('appearanceStatus');
   var phScene = $('phScene'), phPlate = $('phPlate'), phField = $('phField'), phList = $('phList'), phRows = $('phRows'), phAction = $('phAction'), phEmpty = $('phEmpty');
   var phPlates = [phPlate, $('phPlateAlt')], phFields = [phField, $('phFieldAlt')], photoPlateIndex = 0, photoPlateKey = null;
   var utPlates = [$('utLens'), $('utLensAlt')], utFields = [$('utField'), $('utFieldAlt')], utPlateIndex = 0, utPlateKey = null;
@@ -1409,7 +1446,7 @@
     appearanceEl.hidden = !isSettingsDetail(t);
     if (appearanceEl.hidden) { appearanceEl.removeAttribute('aria-modal'); return; }
     appearanceEl.setAttribute('aria-modal', 'true');
-    if (t.id === 'wallpaper') { renderWallpaper(t); return; }
+    if (t.id === 'wallpaper') { setHTML(appearanceHome, ''); renderWallpaper(t); return; }
     V.appearance.norm(t);
     appearanceEl.className = 'appearance detail-' + t.group;
     appearanceRows.className = 'appearance-rows';
@@ -1418,12 +1455,14 @@
     function command(item, inner, cls) {
       var applied = item.axis && S.c[item.axis] === item.value;
       var loading = !!(item.axis && S.pending && S.pending.target[item.axis] === item.value && S.pending.row === item.axis);
-      return '<button type="button" tabindex="-1" class="setting-choice' + (cls ? ' ' + cls : '') + (t.f.action === item.action ? ' is-focus' : '') + (item.disabled ? ' is-disabled' : '') + (applied ? ' is-applied' : '') + (loading ? ' is-loading' : '') + '"'
+      return '<button type="button" tabindex="-1" class="setting-choice' + (cls ? ' ' + cls : '') + (t.f.zone !== 'launcher' && t.f.action === item.action ? ' is-focus' : '') + (item.disabled ? ' is-disabled' : '') + (applied ? ' is-applied' : '') + (loading ? ' is-loading' : '') + '"'
         + (item.axis ? ' role="radio" aria-checked="' + !!applied + '"' : '') + ' aria-label="' + esc(item.axis && item.value === 'both' ? 'Icons and text' : item.label) + '" aria-disabled="' + !!item.disabled + '" aria-busy="' + loading + '"'
         + ' data-z="detail" data-i="0" data-id="' + item.action + '" data-action="' + item.action + '">' + inner
         + (item.axis ? '<span class="setting-tick" aria-hidden="true">' + (applied ? icon('check') : '') + '</span>' : '') + '</button>';
     }
     setHTML(appearanceBack, command({ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings' }, icon('left') + '<span>' + (t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings') + '</span>', 'setting-back'));
+    setHTML(appearanceHome, headButtons([['home', 'Home', '', 'frame']], t.f.zone === 'launcher' ? 0 : -1, 'launcher'));
+    appearanceHome.className = 's-head' + (t.f.zone === 'launcher' ? ' is-awake' : '');
     setHTML(appearanceRows, detailSections(t).map(function (section) {
       return '<section class="setting-section' + (section.horizontal ? ' is-horizontal' : '') + ' section-' + section.id + '">'
         + (section.title ? '<h3 class="setting-label" id="setting-' + section.id + '">' + section.title + '</h3>' : '')
@@ -1540,7 +1579,7 @@
         + '<div class="ed-home" data-slot="home"></div><div class="ed-order-break" data-slot="break">Then scroll</div><div class="ed-other-view" data-slot="ov"><div class="ed-other" data-slot="other"></div></div><div class="ed-origin" data-slot="origin"></div>'
         + '<div class="row-cue editor-before" data-slot="otherBefore" aria-hidden="true">' + icon('up') + '</div><div class="row-cue editor-after" data-slot="otherAfter" aria-hidden="true">' + icon('down') + '</div>';
     },
-    settings: function () { return '<h2 class="s-title">Settings</h2><div class="settings-overview" data-slot="list"></div><p class="settings-overview-hint"><span class="remote-key">OK</span><span>Open selected group</span></p>'; },
+    settings: function () { return '<div class="s-head" data-slot="head"></div><h2 class="s-title">Settings</h2><div class="settings-overview" data-slot="list"></div><p class="settings-overview-hint"><span class="remote-key">OK</span><span>Open selected group</span></p>'; },
     message: function (t) {
       var m = messageContent(t);
       return '<h2 class="msg-title">' + esc(m.title) + '</h2><p class="msg-line">' + esc(m.line) + '</p><p class="msg-note">' + esc(m.note) + '</p><div class="msg-acts" data-slot="acts"></div>';
@@ -1555,7 +1594,7 @@
       var f = t.f, items = appsItems(), n = items.length, rows = Math.ceil(n / COLS), vis = 3, row = Math.floor(f.i / COLS);
       setHTML(el.title, 'All apps');
       setHTML(el.sub, esc(catalog.loading ? 'Loading installed apps…' : catalog.error || (!n ? 'No installed apps found.' : '')));
-      setHTML(el.head, headButtons(appsHead(), f.zone === 'head' ? 0 : -1, 'apps'));
+      setHTML(el.head, headButtons(appsHead(), f.zone === 'head' ? f.h : -1, 'apps'));
       el.head.className = 's-head' + (f.zone === 'head' ? ' is-awake' : '');
       if (f.zone === 'grid') { if (row < t.top) t.top = row; if (row > t.top + vis - 1) t.top = row - vis + 1; }
       t.top = clamp(t.top, 0, Math.max(0, rows - vis));
@@ -1577,7 +1616,7 @@
       var entries = [], ys = [], y = 0, yf, minTop, maxTop = 0, rowEnd, before = false, afterRows = false;
       var hint = catalog.error ? catalog.error : catalog.loading ? 'Loading installed apps…' : f.zone === 'head' && f.h === 0 ? undoCaption() : f.zone === 'home' && f.part === 'remove' ? (H.length <= 1 ? LAST : app(H[f.i]).name + ' stays installed.') : '';
       setHTML(el.sub, editStatus(hint, t.lifted ? 'Moving ' + app(t.lifted.id).name + '. OK places it, Back puts it back.' : ''));
-      setHTML(el.head, headButtons([['undo', 'Undo', S.undo.length ? '' : 'is-idle', 'undo'], ['done', 'Done', '', 'check']], f.zone === 'head' ? f.h : -1, 'editor'));
+      setHTML(el.head, headButtons([['undo', 'Undo', S.undo.length ? '' : 'is-idle', 'undo'], ['done', 'Done', '', 'check'], ['launcher', 'Home', '', 'frame']], f.zone === 'head' ? f.h : -1, 'editor'));
       el.head.className = 's-head' + (f.zone === 'head' ? ' is-awake' : '');
       setHTML(el.lh, 'On Home <span class="s-count">' + S.c.home.length + ' of ' + CAP + '</span>');
       el['break'].className = 'ed-order-break' + (H.length > editorCut() ? ' is-on' : '');
@@ -1634,9 +1673,11 @@
     settings: function (t, el) {
       var html = '';
       settingsRows().forEach(function (r) {
-        html += '<button type="button" tabindex="-1" class="settings-group' + (r.id === t.f.id ? ' is-focus' : '') + '" data-z="row" data-i="0" data-id="' + r.id + '" data-action="settings.' + (r.id === 'editor' ? 'editor' : 'group.' + r.id) + '"><span class="settings-group-copy"><span class="settings-group-name">' + esc(r.label) + '</span><span class="settings-group-value">' + esc(r.value) + '</span></span>' + icon('right') + '</button>';
+        html += '<button type="button" tabindex="-1" class="settings-group' + (t.f.zone === 'launcher' || r.id !== t.f.id ? '' : ' is-focus') + '" data-z="row" data-i="0" data-id="' + r.id + '" data-action="settings.' + (r.id === 'editor' ? 'editor' : 'group.' + r.id) + '"><span class="settings-group-copy"><span class="settings-group-name">' + esc(r.label) + '</span><span class="settings-group-value">' + esc(r.value) + '</span></span>' + icon('right') + '</button>';
       });
       setHTML(el.list, html);
+      setHTML(el.head, headButtons([['launcher', 'Home', '', 'frame']], t.f.zone === 'launcher' ? 0 : -1, 'settings'));
+      el.head.className = 's-head' + (t.f.zone === 'launcher' ? ' is-awake' : '');
     },
     message: function (t, el) {
       setHTML(el.acts, messageContent(t).actions.map(function (a, i) {

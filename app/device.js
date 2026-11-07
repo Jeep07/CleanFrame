@@ -128,7 +128,33 @@
     } catch (err) { finish(failure(err)); }
   }
   function home(done) { launchApp('com.samsung.tv.csfs', done); }
-  function settings(done) { launchApp('com.samsung.tv.coba.setting', done); }
+  function settings(done) {
+    // Plain launch of com.samsung.tv.coba.setting can be accepted with no Settings screen on Tizen 6.5.
+    // Inputs uses VIDEOSOURCE, tvwindow.setSource and org.tizen.tv-viewer. That path does not identify Settings.
+    // org.tizen.menu is requested only when this TV lists it. No regional menu-file path is attached.
+    var appApi = api();
+    if (!appApi || typeof appApi.getAppsInfo !== 'function' || typeof appApi.launchAppControl !== 'function') { unavailable(done); return; }
+    var finish = bounded(done, 20000);
+    try {
+      appApi.getAppsInfo(function (list) {
+        var present = false, i;
+        for (i = 0; list && i < list.length; i++) if (list[i] && list[i].id === 'org.tizen.menu') present = true;
+        if (!present) {
+          finish({
+            message: 'This TV did not list org.tizen.menu.',
+            detail: 'com.samsung.tv.coba.setting is not launched. A plain launch of that id can be accepted while Settings stays hidden. Inputs uses the source API and org.tizen.tv-viewer, which is a different application.'
+          });
+          return;
+        }
+        try {
+          var control = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/default', null, null, null, null);
+          appApi.launchAppControl(control, 'org.tizen.menu', function () {
+            finish(null, { accepted: true, shown: false, id: 'org.tizen.menu' });
+          }, function (err) { finish(failure(err)); });
+        } catch (err) { finish(failure(err)); }
+      }, function (err) { finish(failure(err)); });
+    } catch (err) { finish(failure(err)); }
+  }
   function apps(done) {
     if (!api()) { unavailable(done); return; }
     // Large installed catalogues can take longer than a launch response.

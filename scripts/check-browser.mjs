@@ -15,7 +15,9 @@ const CATALOG = IDS.map((id, i) => ({ id, name: NAMES[i], show: true, iconPath: 
   { id: '5b8c3eb16b.BeamCTVDev', name: 'HBO Max', show: true, iconPath: '' },
   { id: 'NZsRORBcn0.WesleyCleanFrame', name: 'CleanFrame', show: true },
   { id: 'AbCdEf1234.worker', name: 'Background worker', show: true },
-  { id: 'com.samsung.tv.cobalt-yt', name: 'YouTube', show: true }
+  { id: 'com.samsung.tv.cobalt-yt', name: 'YouTube', show: true },
+  { id: 'org.tizen.menu', name: 'Menu', show: true },
+  { id: 'com.samsung.tv.coba.setting', name: 'Setting', show: false }
 ]);
 const walls = JSON.parse(readFileSync(root + 'app/assets/wallpapers/SOURCES.json', 'utf8'));
 const out = root + '.local/qa/';
@@ -372,7 +374,7 @@ try {
         await look({ bg: 'photo', layout, controls, focus: 'glass', font: 'manrope' }); await scene('home');
         if ((await call('where')).zone === 'util') await nav('back');
         await nav(layout === 'dock' ? 'up' : 'right');
-        await nav(...Array(3).fill(layout === 'dock' ? 'left' : 'up'));
+        await nav(...Array(4).fill(layout === 'dock' ? 'left' : 'up'));
         await current.waitForTimeout(180);
         const spacing = await current.evaluate(({ layout, controls }) => {
           const scale = document.getElementById('stage').getBoundingClientRect().width / 1920;
@@ -385,9 +387,9 @@ try {
           });
         }, { layout, controls });
         check(layout + '/' + controls + ' uses spacing between visible children at ' + width,
-          spacing.length === 4 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
+          spacing.length === 5 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
         const focused = [];
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < 5; i++) {
           if (i) await nav(layout === 'dock' ? 'right' : 'down');
           focused.push(await current.evaluate(() => {
             const button = document.querySelector('#utils .u.is-focus'), lens = document.querySelector('.ut-lens.is-current');
@@ -497,7 +499,23 @@ try {
     check('Samsung escape keeps CSFS target', (await current.evaluate(() => __tv.calls.at(-1))).id === 'com.samsung.tv.csfs');
     await current.evaluate(() => window.dispatchEvent(new Event('focus'))); await group('samsung'); await act('samsung.settings');
     await current.waitForFunction(() => __tv.calls.length === 5);
-    check('TV settings keeps installed target', (await current.evaluate(() => __tv.calls.at(-1))).id === 'com.samsung.tv.coba.setting');
+    const settingsCall = await current.evaluate(() => ({ call: __tv.calls.at(-1), headless: __tv.calls.some(call => call.id === 'com.samsung.tv.coba.setting' || call.method === 'setSource') }));
+    check('TV settings requests the listed menu application without a regional file or the headless id', settingsCall.call.method === 'launchAppControl' && settingsCall.call.id === 'org.tizen.menu' && settingsCall.call.control.operation === 'http://tizen.org/appcontrol/operation/default' && settingsCall.call.control.uri == null && settingsCall.call.control.data == null && settingsCall.headless === false, settingsCall);
+    await current.waitForFunction(() => ShoreQA.where().view === 'message');
+    const accepted = await current.locator('#stage').innerText();
+    check('An accepted menu request is not reported as Settings appearing', /accepted/i.test(accepted) && /not confirmed/i.test(accepted) && !/\b(opened|success)\b/i.test(accepted), accepted);
+    await current.evaluate(() => { __tv.savedCatalog = __tv.catalog.slice(); __tv.catalog = __tv.catalog.filter(app => app.id !== 'org.tizen.menu'); __tv.calls = []; });
+    await scene('home'); await group('samsung'); await act('samsung.settings');
+    await current.waitForFunction(() => ShoreQA.where().view === 'message');
+    const missing = await current.locator('#stage').innerText();
+    check('A missing menu application does not launch the headless settings id', /org\.tizen\.menu/.test(missing) && /coba\.setting/.test(missing) && (await current.evaluate(() => __tv.calls.length)) === 0, missing);
+    await current.evaluate(() => { __tv.catalog = __tv.savedCatalog; __tv.launchFailure = true; __tv.calls = []; });
+    await scene('home'); await group('samsung'); await act('samsung.settings');
+    await current.waitForFunction(() => ShoreQA.where().view === 'message');
+    const refused = await current.evaluate(() => ({ text: document.getElementById('stage').innerText, calls: __tv.calls.slice() }));
+    check('A refused menu request stays an error without another target', /could not|unavailable/i.test(refused.text) && refused.calls.length === 1 && refused.calls[0].id === 'org.tizen.menu' && refused.calls[0].method === 'launchAppControl', refused);
+    await current.evaluate(() => { __tv.launchFailure = false; __tv.calls = []; });
+    await scene('home');
     await current.evaluate(() => { window.dispatchEvent(new Event('focus')); __tv.launchFailure = true; });
     await scene('home'); await act('home.app.netflix'); await current.waitForFunction(() => ShoreQA.where().view === 'message');
     check('Launch failure is shown', /could not|unavailable|try again/i.test(await current.locator('#stage').innerText()));
@@ -517,16 +535,44 @@ try {
     for (const layout of ['dock', 'list']) {
       await look({ layout, controls: 'both' }); await scene('home');
       const labels = await current.locator('#utils .u').evaluateAll(els => els.map(el => el.getAttribute('aria-label')));
-      check(layout + ' controls keep Samsung Home beside the existing controls', same(labels, ['Art Mode', 'All apps', 'Settings', 'Samsung Home']), labels);
+      check(layout + ' controls keep Home and Samsung Home distinct', same(labels, ['Art Mode', 'All apps', 'Settings', 'Home', 'Samsung Home']), labels);
       await nav(layout === 'dock' ? 'up' : 'right');
-      await nav(...Array(3).fill(layout === 'dock' ? 'left' : 'up'));
+      await nav(...Array(4).fill(layout === 'dock' ? 'left' : 'up'));
       check(layout + ' remote starts on Art Mode', (await call('where')).focusAction === 'util.art');
-      await nav(...Array(3).fill(layout === 'dock' ? 'right' : 'down'));
+      await nav(...Array(4).fill(layout === 'dock' ? 'right' : 'down'));
       check(layout + ' remote reaches Samsung Home', (await call('where')).focusAction === 'util.samsung' && (await call('where')).focus === 'Samsung Home');
       await current.screenshot({ path: out + 'samsung-home-' + layout + '-1920.png' });
       await nav('back');
       check(layout + ' Back from Samsung Home returns to the selected app', (await call('where')).zone === 'apps' && (await current.evaluate(() => __tv.calls.length)) === 0);
     }
+    await look({ layout: 'dock', controls: 'both' }); await scene('home');
+    const order = (await state()).dock.slice();
+    const writes = (await state()).writes;
+    await nav('up', 'left');
+    check('Launcher Home is distinct from Samsung Home', (await call('where')).focusAction === 'util.launcher' && (await call('where')).focus === 'Home');
+    await current.screenshot({ path: out + 'cleanframe-home-dock-1920.png' });
+    await act('util.launcher');
+    check('Home on the launcher does not launch or rewrite the app order', (await call('where')).view === 'home' && (await call('where')).zone === 'apps' && (await current.evaluate(() => __tv.calls.length)) === 0 && same((await state()).dock, order) && (await state()).writes === writes);
+    await scene('settings'); await nav('up');
+    check('Settings reaches CleanFrame Home', (await call('where')).focusAction === 'settings.launcher');
+    await act('settings.launcher');
+    check('Settings Home returns to the launcher', (await call('where')).view === 'home' && same((await state()).dock, order) && (await state()).writes === writes);
+    await library(); await nav('up', 'right');
+    check('All apps reaches CleanFrame Home', (await call('where')).focusAction === 'apps.launcher');
+    await act('apps.launcher');
+    check('All apps Home keeps the saved order', (await call('where')).view === 'home' && same((await state()).dock, order));
+    await editor();
+    for (let i = 0; i < 12 && (await call('where')).zone !== 'head'; i++) await nav('up');
+    await nav('right', 'right');
+    check('Editor reaches CleanFrame Home', (await call('where')).focusAction === 'editor.launcher' && (await call('where')).zone === 'head');
+    await act('editor.launcher');
+    check('Editor Home keeps completed apps and drops no saved order', (await call('where')).view === 'home' && same((await state()).dock, order) && (await state()).writes === writes);
+    await group('background');
+    for (let i = 0; i < 6 && (await call('where')).focusAction !== 'settings.back'; i++) await nav('up');
+    await nav('right');
+    check('Background can focus CleanFrame Home without leaving through Samsung', (await call('where')).focusAction === 'launcher.home');
+    await act('launcher.home');
+    check('Appearance Home restores the launcher', (await call('where')).view === 'home' && same((await stored()).dock, order) && (await state()).writes === writes);
     await act('util.samsung');
     await current.waitForFunction(() => __tv.calls.length === 1);
     const opened = await current.evaluate(() => ({ call: __tv.calls[0], lifecycle: __tv.lifecycle.slice(), view: ShoreQA.where().view }));
@@ -713,6 +759,10 @@ try {
       if (firstRadio) {
         await current.locator('[data-action="' + firstRadio.action + '"]').hover();
         check(name + ' pointer hover does not apply a choice', same(await settingsSnapshot(), before));
+      }
+      if ((await state()).focusAction === 'launcher.home') {
+        await nav('back');
+        check(name + ' Back leaves CleanFrame Home on the panel Back row', (await state()).focusAction === 'settings.back' && same(await settingsSnapshot(), before));
       }
       await nav('back');
       check(name + ' Back cancels the unconfirmed choice', same(await settingsSnapshot(), before) && (await state()).focusAction === 'settings.group.' + name);

@@ -1,3 +1,7 @@
+# CleanFrame 0.7.4
+
+Home, beside Settings and Samsung Home, returns to CleanFrame’s own launcher from the Dock, List, All apps, the editor, Settings and an appearance group. It does not launch Samsung Home and it does not rewrite the saved app order. Samsung Home stays the separate `com.samsung.tv.csfs` escape. TV settings no longer plain-launches `com.samsung.tv.coba.setting`. It requests `org.tizen.menu` only when that id is installed, without a regional menu file, and an accept callback is not reported as Settings on screen. Inputs stay on the source API and `org.tizen.tv-viewer`. Boot autostart is not enabled. The launcher icon is the selected WC mark: navy `#14213D`, orange `#FF6600` in the top-left tile, light tiles `#E8EEF5`, and slate `#5B6B82` at the bottom right. `app/icon.svg` is that editable source and `app/icon.png` is the 512×512 widget icon. The package identity and `required_version` 5.0 are unchanged.
+
 # CleanFrame 0.7.3
 
 The Home controls add Samsung Home beside Art Mode, All apps and Settings. OK uses the existing `tizen.application.launch` of `com.samsung.tv.csfs` and does not hide or exit CleanFrame first. A refused launch stays on the error message. The remote’s physical Home button, startup and Art Mode are unchanged. Return inside YouTube remains that app’s and the television’s behaviour. The launcher icon is a four-tile mark, and the package identity stays `NZsRORBcn0` / `NZsRORBcn0.WesleyCleanFrame` with `required_version` 5.0.

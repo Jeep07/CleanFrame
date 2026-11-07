@@ -62,6 +62,26 @@ Do this on the owner’s Mac, with a separate approval before the first device c
 9. On the TV, open All apps and compare the seven shortcuts with `getAppsInfo()`. Replace any shortcut whose candidate ID is absent. Launch each installed service with the remote. Account sign-in stays inside those apps.
 10. Confirm Art Mode separately from the wallpaper. The expected call is still `org.tizen.art-app` with fullscreen mode. A successful callback is not visual proof. Personal Art Mode photos are Samsung’s, not the launcher wallpapers.
 
+## Boot autostart
+
+Version 0.7.4 does not enable boot autostart. There is no supported manifest or web API that makes this sideloaded app the cold-boot target on a consumer LS03B.
+
+Samsung’s installation FAQ says consumer and hotel TVs do not automatically launch an application installed through USB. Hotel automatic launch, where it exists from Tizen 6.5, is for applications installed from Samsung’s application server. Developer-mode `tizen install` is not that path. This package does not add `http://tizen.org/appcontrol/operation/main`, `eden_resume`, or `background-support="enable"`. Those entries do not assign a fixed boot app, and this build does not pretend that they do.
+
+The television menu “Autorun Last App” is a different thing. Samsung describes it as multitasking: if the menu is on, the TV supports it, and the last app supports multitasking, the TV may reopen that last app. It does not pin CleanFrame after another app was used. The project’s earlier menu experiment on a different Frame found the same limit. Standby or Instant On can also resume the last picture or app. That is not a cold boot, which needs the set to start from a full power-off with no last app preserved. The 2022 Frame menu names have not been read from this television.
+
+The reference native helper writes undocumented startup values as the SDK user and is guarded for a different model. It is not a rollback-verified method for this LS03B, and this build does not run it or change the physical Home button.
+
+Nothing in this package changes a television setting, so there is no autostart value to roll back. If the owner later tries Autorun Last App from the TV menus, record the previous value first and restore that value to undo it. The Mac cannot see or operate that menu. Do not treat a successful resume of whichever app was last as proof that CleanFrame starts on boot.
+
+## TV settings
+
+Version 0.7.3 launched `com.samsung.tv.coba.setting` and showed nothing when the television accepted that call. On this LS03B the TV settings button did not open Samsung settings. Inputs still worked, because Inputs uses `tvwindow.setSource` and `org.tizen.tv-viewer`, not that application id.
+
+Version 0.7.4 does not launch `com.samsung.tv.coba.setting`. It looks for `org.tizen.menu` in `getAppsInfo()`. If the id is listed, it sends the default application-control operation with no menu-file path. The screen then says the television accepted the request and that Settings on screen is not confirmed. If the id is missing or the control is refused, CleanFrame stays on the error. No input is switched and no television setting is written.
+
+The on-TV check is visual. Open Settings → Samsung → TV settings. If Samsung’s settings screen appears, record that. If CleanFrame remains, record the message. “did not list org.tizen.menu” means that id was absent. “not confirmed” means the accept callback fired and the screen still has to be judged by eye. A later read-only check, only if the screen does not appear, is whether `getAppsInfo()` contains `org.tizen.menu` or an id beginning `com.samsung.tv.coba.setting`. Report those platform ids only, not the rest of the installed list. Do not add an ATSC menu path from another model.
+
 ## Return and the Samsung Home control
 
 Version 0.7.3 adds a Samsung Home control beside Art Mode, All apps and Settings. OK launches `com.samsung.tv.csfs` and does not close CleanFrame first. If the television refuses the launch, CleanFrame remains on the error. This is the same launch already used from Settings. It does not change the physical Home button.
@@ -86,5 +106,8 @@ Keep the author certificate if you want a later in-place update of the same iden
 - Whether Device Manager can install when `sdb shell` and general app commands are disabled.
 - Visible launch of each of the seven services, or an honest missing-app error.
 - Visible Art Mode and the usual wake path, recorded separately from the launcher wallpaper.
+- Settings → Samsung → TV settings: whether Samsung’s settings screen appears, and the exact CleanFrame message if it does not. Inputs should still list HDMI ports and must not be used as a settings shortcut.
+- Home from All apps, the editor, Settings and an appearance group returns to the CleanFrame launcher and keeps the saved app order. Samsung Home remains the separate escape. The physical Home button is unchanged.
+- Cold boot does not open CleanFrame. Standby resume and Autorun Last App are different from a full power-off. This package does not change either menu.
 - Remote focus, type and public fonts on the set.
 - The uninstall command or Apps-screen removal, matched to the owner package ID, with Samsung Home still the system Home.
